@@ -1,0 +1,263 @@
+/* Basic layout */
+:root{
+  --cellSize: 48px;
+  --boardBg: #f9f2e3;
+  --line: #c9b59b;
+  --shadow: rgba(0,0,0,0.12);
+}
+
+*{ box-sizing:border-box; }
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  background:#fafafa;
+  color:#222;
+}
+h1,h2,h3{ margin:0 0 10px; }
+p{ margin:8px 0; }
+
+.screen{ padding:18px; max-width:1100px; margin:0 auto; }
+.hidden{ display:none !important; }
+
+.header{ text-align:center; margin:14px 0 18px; }
+.sub{ color:#666; margin-top:6px; }
+
+.panel{
+  background:#fff;
+  border:1px solid #e8e8e8;
+  border-radius:12px;
+  padding:14px 14px;
+  margin:12px 0;
+  box-shadow: 0 2px 10px var(--shadow);
+}
+.row{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+.col{ display:flex; flex-direction:column; gap:8px; }
+.actions{ display:flex; gap:12px; justify-content:flex-end; }
+.hintText{ color:#666; font-size: 13px; }
+
+button{
+  border:1px solid #d6d6d6;
+  background:#fff;
+  padding:10px 14px;
+  border-radius:10px;
+  cursor:pointer;
+  font-size:14px;
+}
+button.primary{
+  background:#111;
+  color:#fff;
+  border-color:#111;
+}
+button.ghost{
+  background:#fff;
+}
+button:disabled{ opacity:0.55; cursor:not-allowed; }
+
+.footer .small{ font-size:12px; color:#666; }
+
+/* Game screen */
+.gameTop{
+  position:sticky;
+  top:0;
+  z-index:5;
+  background:#fafafa;
+  padding:12px 0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.statusLine{ font-weight:700; }
+.subStatusLine{ font-size:13px; color:#444; margin-top:4px; min-height:18px; }
+
+.checkWin{
+  background:#b30000;
+  color:#fff;
+  border-color:#b30000;
+  font-weight:700;
+}
+.checkWin.flash{
+  animation: flash 0.8s infinite;
+}
+@keyframes flash{
+  0%{ transform:scale(1); }
+  50%{ transform:scale(1.04); }
+  100%{ transform:scale(1); }
+}
+
+.gameMain{
+  display:grid;
+  grid-template-columns: 1fr 320px;
+  gap:16px;
+  align-items:start;
+}
+@media (max-width: 980px){
+  .gameMain{ grid-template-columns: 1fr; }
+}
+
+.boardWrap{
+  background:#fff;
+  border:1px solid #e8e8e8;
+  border-radius:12px;
+  padding:14px;
+  box-shadow: 0 2px 10px var(--shadow);
+}
+.board{
+  --cols: 9;
+  --rows: 10;
+  display:grid;
+  grid-template-columns: repeat(var(--cols), var(--cellSize));
+  grid-template-rows: repeat(var(--rows), var(--cellSize));
+  background: var(--boardBg);
+  border:2px solid var(--line);
+  border-radius:10px;
+  overflow:hidden;
+  user-select:none;
+}
+.cell{
+  width: var(--cellSize);
+  height: var(--cellSize);
+  border-right:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  font-size:22px;
+}
+.cell:nth-child(9n){ border-right:none; } /* for 9 cols, will be adjusted by JS if needed */
+
+.cell.selected{
+  outline:3px solid rgba(0,0,0,0.35);
+  z-index:2;
+}
+
+.piece{
+  width:38px;
+  height:38px;
+  border-radius:999px;
+  border:2px solid #333;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(255,255,255,0.75);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.18);
+}
+.piece.red{ border-color:#b30000; color:#b30000; }
+.piece.black{ border-color:#111; color:#111; }
+
+.piece.hiddenPiece{
+  font-size:18px;
+  background:rgba(255,255,255,0.6);
+}
+.piece.hiddenPiece::after{
+  content:"蓋";
+  font-size:14px;
+  color:#666;
+}
+
+.hintMove{
+  background: rgba(40,140,255,0.16);
+}
+.hintCapture{
+  background: rgba(255,120,40,0.18);
+}
+.danger{
+  box-shadow: inset 0 0 0 4px rgba(255,0,0,0.16);
+}
+
+.kingInCheck{
+  box-shadow: inset 0 0 0 4px rgba(179,0,0,0.35);
+  animation: flashCheck 0.8s infinite;
+}
+@keyframes flashCheck{
+  0%{ box-shadow: inset 0 0 0 4px rgba(179,0,0,0.15); }
+  50%{ box-shadow: inset 0 0 0 4px rgba(179,0,0,0.45); }
+  100%{ box-shadow: inset 0 0 0 4px rgba(179,0,0,0.15); }
+}
+
+.sidePanel .history{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow:auto;
+  padding: 10px;
+  background:#fbfbfb;
+  border:1px solid #eee;
+  border-radius:10px;
+}
+
+.sidePanel .toggle{ display:flex; gap:8px; align-items:center; }
+.small{ font-size: 12px; color:#444; }
+
+/* Modal */
+.modalOverlay{
+  position:fixed;
+  inset:0;
+  background: rgba(0,0,0,0.42);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  z-index:50;
+}
+.modal{
+  width:min(680px, 96vw);
+  background:#fff;
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.25);
+}
+.modalHeader{
+  padding:14px 16px;
+  border-bottom:1px solid #eee;
+  background:#fafafa;
+}
+.modalTitle{ font-weight:800; }
+.modalBody{
+  padding:14px 16px;
+  line-height:1.6;
+  color:#222;
+}
+.modalActions{
+  padding:14px 16px;
+  border-top:1px solid #eee;
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+.modalActions button{ min-width: 120px; }
+
+/* Dice UI elements inside modal body */
+.diceBox{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap:10px;
+  margin-top:10px;
+}
+.diceRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid #eee;
+  border-radius:12px;
+  background:#fcfcfc;
+}
+.diceLabel{ font-weight:700; }
+.diceValue{
+  width: 60px;
+  height: 44px;
+  border-radius:12px;
+  border:2px solid #333;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:24px;
+  background:#fff;
+}
+.diceValue.red{ border-color:#b30000; color:#b30000; }
+.diceValue.black{ border-color:#111; color:#111; }
