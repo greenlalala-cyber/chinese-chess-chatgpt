@@ -125,7 +125,7 @@ button:disabled{ opacity:0.55; cursor:not-allowed; }
   position:relative;
   font-size:22px;
 }
-.cell:nth-child(9n){ border-right:none; } /* for 9 cols, will be adjusted by JS if needed */
+.cell:nth-child(9n){ border-right:none; }
 
 .cell.selected{
   outline:3px solid rgba(0,0,0,0.35);
@@ -230,7 +230,7 @@ button:disabled{ opacity:0.55; cursor:not-allowed; }
 }
 .modalActions button{ min-width: 120px; }
 
-/* Dice UI elements inside modal body */
+/* Dice UI */
 .diceBox{
   display:grid;
   grid-template-columns: 1fr;
