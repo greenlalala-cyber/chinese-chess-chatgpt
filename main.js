@@ -1,129 +1,385 @@
 /* Xiangqi (Chinese Chess) - Offline HTML/CSS/JS
-   - Big board: standard rules; win by giving CHECK and pressing "將軍！"
-   - Small board: 9x5, all pieces face-down; optional Dark Capture / Chain Capture.
-   - PvP and PvCPU, dice for first move, move hints & danger zones, localStorage save.
-   - Audio system: AudioManager module with autoplay-unlock, pooling, and event sounds.
+   - Audio system: WebAudio (softer, natural-ish) with autoplay unlock and overlap-safe playback.
+   - If you want to use local audio files instead, see AudioManager.playSample() comments.
 */
 
 (() => {
   'use strict';
 
   // -----------------------------
-  // Audio Manager (獨立音效管理模組)
+  // Audio Manager (更悅耳自然：WebAudio 合成)
   // -----------------------------
-  // 佔位音檔（Base64 WAV 短音）——離線可用
-  // ✅ 你可以把每個 src 換成本地檔案，例如：
-  //    src: "./sounds/move.mp3"
   const AudioManager = (() => {
-    const sounds = {
-      // 請在此替換為您的本地檔案（例如 ./sounds/select.mp3）
-      select:   { src: "data:audio/wav;base64,UklGRmYTAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YUITAACfA2kHA9kK4g0aE5wW0xmOHGoeFSB7Ii0mGCiQKfYp0ilpJDElsyJzH7Yg8h3tG7UZVhXTEYgQmA8MD8kQKxJQGv8g4x8mHuUbWxbxFSoU0w6eC8AL7QnqCe0JQwiMBfMBiwJ8AiEBDwCk/9z+Sv3y/Gf73fnG+M/30vZV9bHy1O1o7r7xQfLS9xX5bP1v+mf6Vvkj+O/6Sv5A/An8U/0w/nr+uv7m/uj+1/5Q/mz+rf7u/ov+Vf4w/hn+e/2y/0T8Gfxw/Tf+mP5j/y7/5/7k/p3+3P5E/v7+0v7k/uL+1v7d/ur+Uf4H/er+hf6C/mn+0/7w/uP+0/7T/t3+Yv6O/tH+3P7k/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4G/er+g/6C/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4C/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4C/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4B/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4B/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv39/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv39/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv38/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv38/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv38/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv38/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv38/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv36/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sw==", pool: 6, volume: 0.55 },
-      move:     { src: "data:audio/wav;base64,UklGRq4bAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YYoTAACRAtcE6wYbCw0P8hWvGkYfXSVgK6Yu2y+QL8Qvny/HL94v6C7pL+st9y3pIeUU5L/kK+R75GHo7epr6yLuXvC+8u7y9fXx+G/5F/pe+1b9xP0L/PP9x/7o/7r+6P5E/vb+0P7j/ur+Uf4H/er+hf6C/mn+0/7w/uP+0/7T/t3+Yv6O/tH+3P7k/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4G/er+g/6C/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4C/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4C/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4B/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4B/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv39/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sw==", pool: 6, volume: 0.50 },
-      capture:  { src: "data:audio/wav;base64,UklGRn4kAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YVoUAACQAyMHCwqoD8MWsBriH5Im+SvpL+wvxS/OL9kv3S7sL/Mx6CHk2+Qr5XvoceqN6y/uWvJb8xvzHfZl+Gf6Y/qa/Rz9L/4J/af+2/6B/hX+Kv4o/sT+0P7G/tT+Wv6c/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6d/u/+0v7p/uL+4P7F/uz+Ww==", pool: 6, volume: 0.55 },
-      error:    { src: "data:audio/wav;base64,UklGRo4vAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YWoVAACaA+0F1gm3DpgS9xolH8wmxC8ALiQv9i8xLwEw8S7BLIUsByh0HkIWzBF6DywIYgQdAOr/2f4J/VH7sPk+97H1q/PO7bTtZO5l8X3w2fiw+J/4iPvm/ez9aP8M/2H+uf7b/s3+uf7X/tT+vP7o/t7+Zf6x/t3+8P7t/uL+9v7x/u3+zP7W/t7+yf7s/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7t/uH+9P7z/u7+0f7Z/t7+yw==", pool: 6, volume: 0.50 },
-      check:    { src: "data:audio/wav;base64,UklGRvo2AABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YdYVAACYA8QGvQoMEb4XHh2iI1UqfzAqNzc9UUxFVFhWWF5bX2tlbGZ5cHh7fHt8fnt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3o=", pool: 4, volume: 0.55 },
-      win:      { src: "data:audio/wav;base64,UklGRqg6AABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YYQWAACSA2kHDhB0G4YiMS1WOFxvYH9kfGJjZWNraWZpd2RkZ2lmbGZpZmlndmRma2ZkbGZlZmlmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2k=", pool: 3, volume: 0.60 },
-
-      diceTick: { src: "data:audio/wav;base64,UklGRlYJAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YTIJAACbA3gG+Qj1C+MN4w/fE8QWmRiQG/0f0iKkJvQoJSlkKO4n2iW8JwklFh4O1gvjC+IK3QmXCTcFvwL+ACr/5P5e/ef8AfyP+g35vvYr9S3yPvB+7f7xgfQk+PX5JfrE+4b88f4c/ov+O/5g/Rv+1P7b/tb+V/5m/eP+Qv9M/7n+TP6A/vb+Yf8Q/23+wf6t/qf+8P7j/u3+Sv7m/9D8qf4H/2v+T/5v/ov+I/9M/7L+5/5G/gv+4v7X/0H9Hv4Z/7L+Of6D/sv+Lf/J/5r+8P6Q/uX+gv6V/df+R/7o/u7+Qv5L/xT+Z/6R/oj+kv7Q/zz+wf4k/1H+8P7o/tD+Nv9A/tT+f/7p/7r+Wv5w/0D+8/7w/ur+RP5d/0b+cv4o/2v+av5Q/9T+4f7k/uj+sf4X/yf+Q/4d/6z+o/7h/tT+Nv9c/0T+8P7s/u7+af4U/zX+Pf4m/8L+ef7X/0P9IP4b/8L+Ov6E/sz+LP/O/5z+8f6Q/uX+gv6V/df+R/7o/u7+Qv5L/xT+Z/6R/oj+kv7Q/zz+wf4k/1H+8P7o/tD+Nv9A/tT+f/7p/7r+Wv5w/0D+8/7w/ur+RP5d/0b+cv4o/2v+av5Q/9T+4f7k/uj+sf4X/yf+Q/4d/6z+o/7h/tT+Nv9c/0T+8P7s/u7+af4U/zX+Pf4m/8L+ef7X/0P9IP4b/8L+Ov6E/sz+LP/O/5z+8f6Q/uX+gv6V/df+R/7o/u7+Qv5L/xT+Z/6R/oj+kv7Q/zz+wf4k/1H+8P7o/tD+Nv9A/tT+f/7p/7r+Wv5w/0D+8/7w/ur+RP5d/0b+cv4o/2v+av5Q/9T+4f7k/uj+sf4X/yf+Q/4d/6z+o/7h/tT+Nv9c/0T+8P7s/u7+af4U/zX+Pf4m/8L+ef7X/0P9IP4b/8L+Ov6E/sz+LP/O/5z+8f6Q/uX+gv6V/df+R/7o/u7+Qv5L/xT+Z/6R/oj+kv7Q/zz+wf4k/1H+8P7o/tD+Nv9A/tT+f/7p/7r+Wv5w/0D+8/7w/ur+RP5d/0b+cv4o/2v+av5Q/9T+4f7k/uj+sf4X/yf+Q/4d/6z+o/7h/tT+Nv9c/0T+8P7s/u7+af4U/zX+Pf4m/8L+ef7X/0P9IP4b/8L+Ov6E/sz+LP/O/5z+8f6Q/uX+gv6V/df+R/7o/u7+Qv5L/xT+Z/6R/oj+kv7Q/zz+wf4k/1H+8P7o/tD+Nv9A/tT+f/7p/7r+Wv5w/0D+8/7w/ur+RP5d/0b+cv4o/2v+av5Q/9T+4f7k/uj+sf4X/yf+Q/4d/6z+o/7h/tT+Nv9c/0T+8P7s/u7+af4U/zX+Pg==", pool: 10, volume: 0.30, throttleMs: 70 },
-      diceStop: { src: "data:audio/wav;base64,UklGRo4vAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YWoVAACaA+0F1gm3DpgS9xolH8wmxC8ALiQv9i8xLwEw8S7BLIUsByh0HkIWzBF6DywIYgQdAOr/2f4J/VH7sPk+97H1q/PO7bTtZO5l8X3w2fiw+J/4iPvm/ez9aP8M/2H+uf7b/s3+uf7X/tT+vP7o/t7+Zf6x/t3+8P7t/uL+9v7x/u3+zP7W/t7+yf7s/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7t/uH+9P7z/u7+0f7Z/t7+yw==", pool: 4, volume: 0.45 },
-    };
-
     let enabled = true;
     let unlocked = false;
-    const pools = new Map(); // name -> Audio[]
-    const lastPlayAt = new Map(); // name -> timestamp ms
+    let ctx = null;
+    let master = null;
 
-    function buildPool(name){
-      const cfg = sounds[name];
-      if(!cfg) return [];
-      const pool = [];
-      const n = cfg.pool ?? 4;
-      for(let i=0;i<n;i++){
-        const a = new Audio(cfg.src);
-        a.preload = 'auto';
-        a.volume = cfg.volume ?? 0.6;
-        pool.push(a);
-      }
-      return pool;
-    }
+    // throttle for spammy sounds (dice tick)
+    const lastAt = new Map();
 
-    function init(){
-      for(const name of Object.keys(sounds)){
-        pools.set(name, buildPool(name));
+    function ensureContext(){
+      if(ctx) return true;
+      try{
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if(!AC) return false;
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.65; // overall volume (soft)
+        master.connect(ctx.destination);
+        return true;
+      }catch(_e){
+        return false;
       }
     }
 
-    function setEnabled(on){
-      enabled = !!on;
-    }
-
+    function setEnabled(on){ enabled = !!on; }
     function isEnabled(){ return enabled; }
 
-    // Autoplay policy: must happen after a user gesture.
-    // We mark unlocked after first pointer/key gesture and attempt a silent play to warm up.
-    function unlock(){
+    // Must be called from a user gesture
+    async function unlock(){
       if(unlocked) return;
-      unlocked = true;
-
-      // Attempt a very short play on a muted audio to satisfy some browsers.
-      // We catch promise rejection to avoid console errors.
+      if(!ensureContext()) return;
       try{
-        const pool = pools.get('select');
-        if(pool && pool[0]){
-          const a = pool[0].cloneNode(true);
-          a.muted = true;
-          const p = a.play();
-          if(p && typeof p.catch === 'function') p.catch(() => {});
-          window.setTimeout(() => { a.pause(); }, 50);
+        if(ctx.state === 'suspended'){
+          await ctx.resume();
         }
-      }catch(_e){}
+        unlocked = true;
+      }catch(_e){
+        // swallow
+      }
     }
+
+    function now(){ return ctx ? ctx.currentTime : 0; }
+
+    // Utility: envelope gain
+    function env(g, t0, a, d, s=0){
+      // attack a, decay d to sustain s (here often 0)
+      g.gain.cancelScheduledValues(t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(1.0, t0 + a);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0001, s), t0 + a + d);
+    }
+
+    // Utility: create noise buffer
+    function makeNoiseBuffer(duration=0.08){
+      const sr = ctx.sampleRate;
+      const len = Math.max(1, Math.floor(sr * duration));
+      const buffer = ctx.createBuffer(1, len, sr);
+      const data = buffer.getChannelData(0);
+      for(let i=0;i<len;i++){
+        // softer noise
+        data[i] = (Math.random() * 2 - 1) * 0.6;
+      }
+      return buffer;
+    }
+
+    // Gentle "click" with sine + tiny noise
+    function sfxSelect(){
+      const t0 = now();
+      const g = ctx.createGain();
+      g.gain.value = 0.0;
+
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(660, t0);
+      o.frequency.exponentialRampToValueAtTime(880, t0 + 0.04);
+
+      const ng = ctx.createGain();
+      ng.gain.value = 0.07;
+      const n = ctx.createBufferSource();
+      n.buffer = makeNoiseBuffer(0.03);
+      const nFilter = ctx.createBiquadFilter();
+      nFilter.type = 'highpass';
+      nFilter.frequency.value = 1200;
+
+      env(g, t0, 0.005, 0.08, 0.0001);
+
+      o.connect(g);
+      n.connect(nFilter);
+      nFilter.connect(ng);
+      ng.connect(g);
+
+      g.connect(master);
+      o.start(t0);
+      o.stop(t0 + 0.10);
+      n.start(t0);
+      n.stop(t0 + 0.04);
+    }
+
+    // Soft wooden knock: low noise + short sine body
+    function sfxMove(){
+      const t0 = now();
+      const out = ctx.createGain();
+      out.gain.value = 0.0;
+
+      // Body
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(180, t0);
+      o.frequency.exponentialRampToValueAtTime(120, t0 + 0.06);
+
+      const og = ctx.createGain();
+      og.gain.value = 0.18;
+      o.connect(og);
+
+      // Knock noise (lowpassed)
+      const n = ctx.createBufferSource();
+      n.buffer = makeNoiseBuffer(0.06);
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 600;
+      const ng = ctx.createGain();
+      ng.gain.value = 0.12;
+
+      n.connect(lp);
+      lp.connect(ng);
+
+      // Envelope
+      env(out, t0, 0.003, 0.14, 0.0001);
+
+      og.connect(out);
+      ng.connect(out);
+      out.connect(master);
+
+      o.start(t0);
+      o.stop(t0 + 0.16);
+      n.start(t0);
+      n.stop(t0 + 0.08);
+    }
+
+    // Capture / flip: slightly sharper but still pleasant (short sweep + filtered noise)
+    function sfxCapture(){
+      const t0 = now();
+      const out = ctx.createGain();
+      out.gain.value = 0.0;
+
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(420, t0);
+      o.frequency.exponentialRampToValueAtTime(220, t0 + 0.08);
+
+      const og = ctx.createGain();
+      og.gain.value = 0.16;
+
+      const n = ctx.createBufferSource();
+      n.buffer = makeNoiseBuffer(0.09);
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 1200;
+      bp.Q.value = 0.8;
+
+      const ng = ctx.createGain();
+      ng.gain.value = 0.10;
+
+      env(out, t0, 0.004, 0.20, 0.0001);
+
+      o.connect(og);
+      n.connect(bp);
+      bp.connect(ng);
+
+      og.connect(out);
+      ng.connect(out);
+      out.connect(master);
+
+      o.start(t0);
+      o.stop(t0 + 0.22);
+      n.start(t0);
+      n.stop(t0 + 0.10);
+    }
+
+    // Error: soft low "bup" (no harsh beep)
+    function sfxError(){
+      const t0 = now();
+      const out = ctx.createGain();
+      out.gain.value = 0.0;
+
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(190, t0);
+      o.frequency.exponentialRampToValueAtTime(110, t0 + 0.10);
+
+      const og = ctx.createGain();
+      og.gain.value = 0.20;
+
+      env(out, t0, 0.005, 0.25, 0.0001);
+
+      o.connect(og);
+      og.connect(out);
+      out.connect(master);
+
+      o.start(t0);
+      o.stop(t0 + 0.28);
+    }
+
+    // Check warning: two gentle tones (not shrill), short pattern
+    function sfxCheck(){
+      const t0 = now();
+      const out = ctx.createGain();
+      out.gain.value = 0.0;
+
+      env(out, t0, 0.006, 0.55, 0.0001);
+      out.connect(master);
+
+      const playTone = (freq, start, dur) => {
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(freq, start);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, start);
+        g.gain.exponentialRampToValueAtTime(0.22, start + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+        o.connect(g);
+        g.connect(out);
+        o.start(start);
+        o.stop(start + dur + 0.01);
+      };
+
+      playTone(523.25, t0 + 0.00, 0.18); // C5
+      playTone(659.25, t0 + 0.22, 0.20); // E5
+    }
+
+    // Win: small major arpeggio, soft
+    function sfxWin(){
+      const t0 = now();
+      const out = ctx.createGain();
+      out.gain.value = 0.0;
+      env(out, t0, 0.01, 0.80, 0.0001);
+      out.connect(master);
+
+      const notes = [523.25, 659.25, 783.99, 1046.5]; // C E G C
+      notes.forEach((f, i) => {
+        const start = t0 + i * 0.10;
+        const o = ctx.createOscillator();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(f, start);
+
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, start);
+        g.gain.exponentialRampToValueAtTime(0.18, start + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+
+        // soften high freq
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 2400;
+
+        o.connect(lp);
+        lp.connect(g);
+        g.connect(out);
+
+        o.start(start);
+        o.stop(start + 0.25);
+      });
+    }
+
+    // Dice tick: very soft "rattle" (highpassed noise), throttled
+    function sfxDiceTick(){
+      const t0 = now();
+      const out = ctx.createGain();
+      out.gain.value = 0.0;
+
+      const n = ctx.createBufferSource();
+      n.buffer = makeNoiseBuffer(0.04);
+
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 900;
+
+      const ng = ctx.createGain();
+      ng.gain.value = 0.06;
+
+      env(out, t0, 0.002, 0.06, 0.0001);
+
+      n.connect(hp);
+      hp.connect(ng);
+      ng.connect(out);
+      out.connect(master);
+
+      n.start(t0);
+      n.stop(t0 + 0.05);
+    }
+
+    // Dice stop: a soft chime
+    function sfxDiceStop(){
+      const t0 = now();
+      const out = ctx.createGain();
+      out.gain.value = 0.0;
+
+      env(out, t0, 0.005, 0.35, 0.0001);
+      out.connect(master);
+
+      const o1 = ctx.createOscillator();
+      o1.type = 'sine';
+      o1.frequency.setValueAtTime(784, t0); // G5
+      const g1 = ctx.createGain();
+      g1.gain.setValueAtTime(0.0001, t0);
+      g1.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02);
+      g1.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.25);
+      o1.connect(g1);
+      g1.connect(out);
+      o1.start(t0);
+      o1.stop(t0 + 0.28);
+
+      const o2 = ctx.createOscillator();
+      o2.type = 'sine';
+      o2.frequency.setValueAtTime(587.33, t0 + 0.02); // D5
+      const g2 = ctx.createGain();
+      g2.gain.setValueAtTime(0.0001, t0 + 0.02);
+      g2.gain.exponentialRampToValueAtTime(0.12, t0 + 0.04);
+      g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.30);
+      o2.connect(g2);
+      g2.connect(out);
+      o2.start(t0 + 0.02);
+      o2.stop(t0 + 0.33);
+    }
+
+    // OPTIONAL: If you later want real audio files, you can implement a sampler here
+    // and replace play() to load ./sounds/*.mp3
+    // function playSample(url) { /* load + decodeAudioData + play buffer */ }
 
     function play(name){
       if(!enabled) return;
-      if(!unlocked) return; // do nothing until user gesture
-      const cfg = sounds[name];
-      if(!cfg) return;
+      if(!unlocked) return;
+      if(!ensureContext()) return;
 
-      // throttle (useful for dice rolling)
-      if(cfg.throttleMs){
-        const now = performance.now();
-        const last = lastPlayAt.get(name) ?? -Infinity;
-        if(now - last < cfg.throttleMs) return;
-        lastPlayAt.set(name, now);
-      }
-
-      const pool = pools.get(name) || [];
-      if(pool.length === 0) return;
-
-      // Find an available audio element; if all busy, clone and play.
-      let chosen = null;
-      for(const a of pool){
-        if(a.paused || a.ended){
-          chosen = a;
-          break;
-        }
-      }
-      if(!chosen){
-        chosen = pool[0].cloneNode(true);
-        chosen.volume = pool[0].volume;
+      // throttle (dice tick)
+      if(name === 'diceTick'){
+        const nowMs = performance.now();
+        const last = lastAt.get(name) ?? -Infinity;
+        if(nowMs - last < 70) return;
+        lastAt.set(name, nowMs);
       }
 
       try{
-        chosen.currentTime = 0;
-        const p = chosen.play();
-        if(p && typeof p.catch === 'function') p.catch(() => {});
-      }catch(_e){}
+        // Keep context alive
+        if(ctx.state === 'suspended'){
+          ctx.resume().catch(()=>{});
+        }
+
+        switch(name){
+          case 'select': return sfxSelect();
+          case 'move': return sfxMove();
+          case 'capture': return sfxCapture();
+          case 'error': return sfxError();
+          case 'check': return sfxCheck();
+          case 'win': return sfxWin();
+          case 'diceTick': return sfxDiceTick();
+          case 'diceStop': return sfxDiceStop();
+          default: return;
+        }
+      }catch(_e){
+        // no console noise
+      }
     }
 
-    init();
     return { setEnabled, isEnabled, unlock, play };
   })();
 
   // -----------------------------
   // Constants & Utilities
   // -----------------------------
-  const STORAGE_KEY = 'xiangqi_save_v2_audio';
+  const STORAGE_KEY = 'xiangqi_save_v2_audio_soft';
 
   const COLOR = { RED: 'r', BLACK: 'b' };
   const MODE = { PVC: 'pvcpu', PVP: 'pvp' };
@@ -188,10 +444,8 @@
   const inDarkCapture = $('inDarkCapture');
   const inChainCapture = $('inChainCapture');
 
-  // Menu sound
   const optSound = $('optSound');
 
-  // Modal
   const modalOverlay = $('modalOverlay');
   const modalTitle = $('modalTitle');
   const modalBody = $('modalBody');
@@ -232,7 +486,7 @@
       this.history = [];
       this.idCounter = 1;
 
-      // For one-shot check warning audio (avoid spamming)
+      // Avoid check sound spam
       this.lastCheckState = { r:false, b:false };
     }
 
@@ -258,11 +512,7 @@
       };
       AudioManager.setEnabled(this.settings.soundOn);
 
-      if(config.mode === MODE.PVC){
-        this.players = { r:'human', b:'cpu' };
-      }else{
-        this.players = { r:'human', b:'human' };
-      }
+      this.players = (config.mode === MODE.PVC) ? { r:'human', b:'cpu' } : { r:'human', b:'human' };
 
       if(config.boardMode === BOARD_MODE.BIG){
         const {board, rows, cols} = createBigBoard(this);
@@ -283,7 +533,6 @@
       this.winner = null;
       this.endReason = '';
       this.history = [];
-
       this.lastCheckState = { r:false, b:false };
 
       this.pushHistory(`新局開始：${config.boardMode==='big'?'大盤':'小盤'}，${config.mode==='pvp'?'雙人':'玩家vsCPU'}，先手：${this.turn==='r'?'紅':'黑'}`);
@@ -299,7 +548,6 @@
         settings: this.settings,
         rows: this.rows,
         cols: this.cols,
-        boardMode: this.config.boardMode,
         turn: this.turn,
         inChain: this.inChain,
         chainPieceId: this.chainPieceId,
@@ -353,9 +601,9 @@
       const pseudo = getPseudoMoves(this, pos, piece);
       const legal = [];
       for(const m of pseudo){
-        const sim = simulateMove(this, pos, m, {forLegality:true});
+        const sim = simulateMove(this, pos, m);
         if(!sim) continue;
-        const {board: b2} = sim;
+        const b2 = sim.board;
         if(isInCheck(this, b2, this.turn)) continue;
         if(areKingsFacing(this, b2)) continue;
         legal.push(m);
@@ -387,28 +635,25 @@
 
       const moverColor = this.turn;
 
+      // Defender is about to move -> previous check window invalid
       if(this.config.boardMode === BOARD_MODE.BIG && this.checkWindow && this.checkWindow.defender === moverColor){
         this.checkWindow = null;
       }
 
       const result = applyMoveReal(this, from, to);
+      if(result.sound) AudioManager.play(result.sound);
 
       this.moveCount += 1;
       this.resetRuntimeOnly();
 
       if(result.message) this.pushHistory(result.message);
 
-      // Move / Capture / Error sound based on result classification
-      if(result.sound){
-        AudioManager.play(result.sound);
-      }
-
       if(result.gameOver){
         this.endGame(result.winner, result.reason, {playWin: true});
         return;
       }
 
-      // Big board: check window
+      // Big: after move, check detection and warning
       if(this.config.boardMode === BOARD_MODE.BIG){
         const defender = this.turn;
         const attacker = opp(defender);
@@ -418,12 +663,12 @@
           this.checkWindow = { attacker, defender, expiresOnMove: this.moveCount + 1 };
           setSubStatus(`⚠️ ${attacker==='r'?'紅':'黑'}方將軍！可按「將軍！」立即獲勝（若略過，對手解除後就無效）。`);
 
-          // play warning only on transition into check
           if(!this.lastCheckState[defender]){
             AudioManager.play('check');
           }
           this.lastCheckState[defender] = true;
 
+          // CPU auto-claim
           if(this.players[attacker] === 'cpu'){
             renderAll();
             window.setTimeout(() => {
@@ -438,10 +683,9 @@
           setSubStatus('');
         }
 
-        // If current player is in check (defender's turn)
+        // Defender turn in check
         const selfInCheck = isInCheck(this, this.board, this.turn);
         if(selfInCheck){
-          // only play when becoming checked
           if(!this.lastCheckState[this.turn]){
             AudioManager.play('check');
           }
@@ -453,11 +697,7 @@
       }
 
       if(this.config.boardMode === BOARD_MODE.SMALL){
-        if(this.inChain){
-          setSubStatus(`連吃中：必須走到空格才能停止並換手。`);
-        }else{
-          setSubStatus('');
-        }
+        setSubStatus(this.inChain ? '連吃中：必須走到空格才能停止並換手。' : '');
       }
 
       renderAll();
@@ -516,10 +756,7 @@
 
     board[2][1] = piece(game,'C','b',true);
     board[2][7] = piece(game,'C','b',true);
-
-    for(const c of [0,2,4,6,8]){
-      board[3][c] = piece(game,'P','b',true);
-    }
+    for(const c of [0,2,4,6,8]) board[3][c] = piece(game,'P','b',true);
 
     // Red
     board[9][0] = piece(game,'R','r',true);
@@ -534,21 +771,16 @@
 
     board[7][1] = piece(game,'C','r',true);
     board[7][7] = piece(game,'C','r',true);
-
-    for(const c of [0,2,4,6,8]){
-      board[6][c] = piece(game,'P','r',true);
-    }
+    for(const c of [0,2,4,6,8]) board[6][c] = piece(game,'P','r',true);
 
     return {board, rows, cols};
   }
 
-  // Small board 9x5 initial configuration (all face-down).
-  // Each side: K x1, A x1, B x1, N x1, R x1, C x1, P x2.
   function createSmallBoard(game){
     const rows = 5, cols = 9;
     const board = Array.from({length: rows}, () => Array(cols).fill(null));
 
-    // Black
+    // Black (all face-down)
     board[0][0] = piece(game,'R','b',false);
     board[0][1] = piece(game,'N','b',false);
     board[0][2] = piece(game,'B','b',false);
@@ -558,7 +790,7 @@
     board[1][2] = piece(game,'P','b',false);
     board[1][6] = piece(game,'P','b',false);
 
-    // Red
+    // Red (all face-down)
     board[4][0] = piece(game,'R','r',false);
     board[4][1] = piece(game,'N','r',false);
     board[4][2] = piece(game,'B','r',false);
@@ -577,32 +809,26 @@
   function palaceContains(game, color, r, c){
     if(game.config.boardMode === BOARD_MODE.BIG){
       if(c < 3 || c > 5) return false;
-      if(color === 'b') return r >= 0 && r <= 2;
-      return r >= 7 && r <= 9;
+      return (color === 'b') ? (r>=0 && r<=2) : (r>=7 && r<=9);
     }else{
       if(c < 3 || c > 5) return false;
-      if(color === 'b') return r >= 0 && r <= 1;
-      return r >= 3 && r <= 4;
+      return (color === 'b') ? (r>=0 && r<=1) : (r>=3 && r<=4);
     }
   }
 
   function riverCrossed(game, color, r){
     if(game.config.boardMode === BOARD_MODE.BIG){
-      if(color === 'r') return r <= 4;
-      return r >= 5;
+      return (color === 'r') ? (r<=4) : (r>=5);
     }else{
-      if(color === 'r') return r <= 2;
-      return r >= 2;
+      return (color === 'r') ? (r<=2) : (r>=2);
     }
   }
 
   function elephantAllowed(game, color, r){
     if(game.config.boardMode === BOARD_MODE.BIG){
-      if(color === 'r') return r >= 5;
-      return r <= 4;
+      return (color === 'r') ? (r>=5) : (r<=4);
     }else{
-      if(color === 'r') return r >= 2;
-      return r <= 2;
+      return (color === 'r') ? (r>=2) : (r<=2);
     }
   }
 
@@ -610,9 +836,7 @@
     const rows = game.rows, cols = game.cols;
     const b = game.board;
     const moves = [];
-
     const add = (r,c) => { if(inside(r,c,rows,cols)) moves.push({r,c}); };
-
     const type = piece.type;
 
     if(type === 'K'){
@@ -728,7 +952,6 @@
   function getAttackedSquares(game, board, attackerColor){
     const rows = board.length, cols = board[0].length;
     const attacked = new Set();
-
     const addKey = (r,c) => { if(inside(r,c,rows,cols)) attacked.add(`${r},${c}`); };
 
     for(let r=0;r<rows;r++){
@@ -814,6 +1037,7 @@
   }
 
   function darkCompare(game, attackerPiece, targetPiece){
+    // Special: small board pawn can capture king
     if(game.config.boardMode === BOARD_MODE.SMALL && attackerPiece.type==='P' && targetPiece.type==='K'){
       return 'win';
     }
@@ -825,7 +1049,7 @@
   // -----------------------------
   // Simulate for legality / AI
   // -----------------------------
-  function simulateMove(game, from, to, {forLegality=false} = {}){
+  function simulateMove(game, from, to){
     const board = deepCloneBoard(game.board);
     const rows = game.rows, cols = game.cols;
     if(!inside(from.r,from.c,rows,cols) || !inside(to.r,to.c,rows,cols)) return null;
@@ -878,7 +1102,7 @@
   }
 
   // -----------------------------
-  // Apply move to real board (with sound classification)
+  // Apply move to real board (分類音效)
   // -----------------------------
   function applyMoveReal(game, from, to){
     const b = game.board;
@@ -897,8 +1121,7 @@
 
     if(game.config.boardMode === BOARD_MODE.BIG){
       if(target && target.color === mover.color){
-        sound = 'error';
-        return {message:'非法：不能吃自己的棋', sound};
+        return {message:'非法：不能吃自己的棋', sound:'error'};
       }
       b[to.r][to.c] = mover;
       b[from.r][from.c] = null;
@@ -917,18 +1140,15 @@
       return {message, gameOver, winner, reason, sound};
     }
 
-    // Small board
+    // Small
     const darkOn = !!game.settings.darkCapture;
     const chainOn = !!game.settings.chainCapture;
-    const wasInChain = game.inChain;
 
     if(!target){
       b[to.r][to.c] = mover;
       b[from.r][from.c] = null;
       sound = 'move';
-
       message = `${moverColor==='r'?'紅':'黑'}：${moverName(mover)} ${coord(from)}→${coord(to)}（空）`;
-
       game.inChain = false;
       game.chainPieceId = null;
       game.turn = opp(moverColor);
@@ -936,8 +1156,7 @@
     }
 
     if(target.revealed && target.color === mover.color){
-      sound = 'error';
-      return {message:'非法：不能吃自己的棋（已翻開）', sound};
+      return {message:'非法：不能吃自己的棋（已翻開）', sound:'error'};
     }
 
     if(darkOn && !target.revealed){
@@ -988,15 +1207,13 @@
 
     // Normal capture
     if(target.color === mover.color){
-      sound = 'error';
-      return {message:'非法：不能吃自己的棋', sound};
+      return {message:'非法：不能吃自己的棋', sound:'error'};
     }
     if(!target.revealed) target.revealed = true;
 
     b[to.r][to.c] = mover;
     b[from.r][from.c] = null;
     sound = 'capture';
-
     message = `${moverColor==='r'?'紅':'黑'}：${moverName(mover)} ${coord(from)}→${coord(to)} 吃 ${GLYPH[target.color][target.type]}`;
 
     if(target.type === 'K'){
@@ -1018,7 +1235,7 @@
   }
 
   // -----------------------------
-  // AI (unchanged core)
+  // AI (沿用原本簡化版)
   // -----------------------------
   function evaluateBoard(board, perspectiveColor){
     let score = 0;
@@ -1028,7 +1245,6 @@
         if(!p) continue;
         const v = PIECE_VALUE[p.type] || 0;
         score += (p.color === perspectiveColor ? v : -v);
-
         if(p.type==='P'){
           if(p.color==='r') score += (perspectiveColor==='r' ? (4-r)*3 : -(4-r)*3);
           if(p.color==='b') score += (perspectiveColor==='b' ? r*3 : -r*3);
@@ -1039,222 +1255,51 @@
   }
 
   function listAllLegalMoves(game, board, color, chainPieceId=null){
-    const temp = {
-      ...game,
-      board,
-      turn: color,
-      inChain: !!chainPieceId,
-      chainPieceId,
-    };
-
+    const temp = { ...game, board, turn: color, inChain: !!chainPieceId, chainPieceId };
     const moves = [];
     for(let r=0;r<temp.rows;r++){
       for(let c=0;c<temp.cols;c++){
         const p = board[r][c];
         if(!p || p.color !== color) continue;
         if(chainPieceId && p.id !== chainPieceId) continue;
+
         const pos = {r,c};
         const pseudo = getPseudoMoves(temp, pos, p);
         for(const m of pseudo){
-          const sim = simulateMove(temp, pos, m, {forLegality:true});
+          const sim = simulateMove(temp, pos, m);
           if(!sim) continue;
           if(isInCheck(temp, sim.board, color)) continue;
           if(areKingsFacing(temp, sim.board)) continue;
-
-          const target = board[m.r][m.c];
-          const isCapture = !!target;
-          moves.push({
-            from: pos,
-            to: {r:m.r,c:m.c},
-            capture: isCapture,
-            dark: (temp.config.boardMode===BOARD_MODE.SMALL && temp.settings.darkCapture && target && !target.revealed),
-          });
+          moves.push({ from: pos, to: {r:m.r,c:m.c} });
         }
       }
     }
     return moves;
   }
 
-  function expectedDarkCaptureValue(game, attackerPiece, enemyColor){
-    const counts = {};
-    let total = 0;
-    for(let r=0;r<game.rows;r++){
-      for(let c=0;c<game.cols;c++){
-        const p = game.board[r][c];
-        if(p && p.color===enemyColor && !p.revealed){
-          counts[p.type] = (counts[p.type]||0) + 1;
-          total += 1;
-        }
-      }
-    }
-    if(total===0) return 0;
-
-    let expected = 0;
-    for(const [t, cnt] of Object.entries(counts)){
-      const prob = cnt / total;
-      const assumedTarget = {type:t, color:enemyColor, revealed:true, id:-1};
-      const cmp = darkCompare(game, attackerPiece, assumedTarget);
-
-      if(cmp === 'lose'){
-        expected += prob * (-(PIECE_VALUE[attackerPiece.type]||0));
-      }else{
-        if(t==='K') expected += prob * 999999;
-        else expected += prob * (PIECE_VALUE[t]||0);
-      }
-    }
-    return expected;
-  }
-
   function chooseMoveAI(game){
     const cpuColor = COLOR.BLACK;
     if(game.turn !== cpuColor) return null;
-
     const level = CPU_LEVELS[game.cpuLevel] || CPU_LEVELS.normal;
 
-    if(game.config.boardMode === BOARD_MODE.BIG){
-      const depth = level.depthBig;
-      const moves = listAllLegalMoves(game, game.board, cpuColor, null);
-
-      let immediateCheckMoves = [];
-      for(const mv of moves){
-        const sim = simulateMove({...game, turn:cpuColor, board:game.board}, mv.from, mv.to);
-        if(!sim) continue;
-        if(isInCheck(game, sim.board, opp(cpuColor))){
-          immediateCheckMoves.push(mv);
-        }
-      }
-      if(immediateCheckMoves.length){
-        return immediateCheckMoves[Math.floor(Math.random()*immediateCheckMoves.length)];
-      }
-
-      moves.sort((a,b) => {
-        const ta = game.board[a.to.r][a.to.c];
-        const tb = game.board[b.to.r][b.to.c];
-        const va = ta ? (PIECE_VALUE[ta.type]||0) : 0;
-        const vb = tb ? (PIECE_VALUE[tb.type]||0) : 0;
-        return vb - va;
-      });
-
-      const topMoves = moves.slice(0, level.topK);
-
-      let best = null;
-      let bestScore = -Infinity;
-
-      for(const mv of topMoves){
-        const sim = simulateMove({...game, turn:cpuColor, board:game.board}, mv.from, mv.to);
-        if(!sim) continue;
-        const score = minimax(game, sim.board, depth-1, opp(cpuColor), cpuColor, -Infinity, Infinity, level);
-        if(score > bestScore){
-          bestScore = score;
-          best = mv;
-        }
-      }
-
-      if(best){
-        const noise = level.noise || 0;
-        if(noise > 0 && topMoves.length > 1){
-          const scored = [];
-          for(const mv of topMoves){
-            const sim = simulateMove({...game, turn:cpuColor, board:game.board}, mv.from, mv.to);
-            if(!sim) continue;
-            let s = minimax(game, sim.board, Math.max(0, depth-2), opp(cpuColor), cpuColor, -Infinity, Infinity, level);
-            s += (Math.random()*2-1) * noise;
-            scored.push({mv, s});
-          }
-          scored.sort((a,b) => b.s - a.s);
-          best = scored[0].mv;
-        }
-      }
-      return best;
-    }
-
-    const chainId = game.inChain ? game.chainPieceId : null;
-    const moves = listAllLegalMoves(game, game.board, cpuColor, chainId);
+    const moves = listAllLegalMoves(game, game.board, cpuColor, game.inChain ? game.chainPieceId : null);
     if(!moves.length) return null;
 
+    // Super simple: pick best capture otherwise random among top
     const scored = moves.map(mv => {
-      const attacker = game.board[mv.from.r][mv.from.c];
       const target = game.board[mv.to.r][mv.to.c];
       let s = 0;
-
-      if(mv.dark && attacker && target){
-        s += expectedDarkCaptureValue(game, attacker, target.color);
-      }else if(target){
+      if(target){
         if(target.type==='K') s += 999999;
-        else s += (PIECE_VALUE[target.type]||0);
+        else s += PIECE_VALUE[target.type] || 0;
       }else{
-        if(attacker && attacker.type==='P') s += 8;
+        s += 2;
       }
-
-      const enemyAttacks = getAttackedSquares(game, game.board, opp(cpuColor));
-      if(enemyAttacks.has(`${mv.to.r},${mv.to.c}`)) s -= 40;
-
-      if(game.settings.chainCapture && target) s += 30;
       s += (Math.random()*2-1) * (level.noise||0);
-
       return {mv, s};
     });
-
-    scored.sort((a,b)=> b.s - a.s);
-    const pickPool = scored.slice(0, clamp(level.topK, 3, scored.length));
-    const idx = (level.noise>0 && pickPool.length>2) ? Math.floor(Math.random()*Math.min(3, pickPool.length)) : 0;
-    return pickPool[idx].mv;
-  }
-
-  function minimax(game, board, depth, toMove, perspective, alpha, beta, level){
-    const kr = findKing(board, 'r');
-    const kb = findKing(board, 'b');
-    if(!kr) return perspective==='r' ? -999999 : 999999;
-    if(!kb) return perspective==='b' ? -999999 : 999999;
-
-    if(game.config.boardMode === BOARD_MODE.BIG){
-      if(isInCheck(game, board, opp(perspective)) && toMove === opp(perspective)){
-        return 999999;
-      }
-    }
-
-    if(depth <= 0){
-      return evaluateBoard(board, perspective);
-    }
-
-    const moves = listAllLegalMoves(game, board, toMove, null);
-    if(!moves.length){
-      return evaluateBoard(board, perspective) - 50;
-    }
-
-    moves.sort((a,b) => {
-      const ta = board[a.to.r][a.to.c];
-      const tb = board[b.to.r][b.to.c];
-      const va = ta ? (PIECE_VALUE[ta.type]||0) : 0;
-      const vb = tb ? (PIECE_VALUE[tb.type]||0) : 0;
-      return vb - va;
-    });
-
-    const limited = moves.slice(0, clamp(level.topK, 6, moves.length));
-
-    if(toMove === perspective){
-      let best = -Infinity;
-      for(const mv of limited){
-        const sim = simulateMove({...game, board, turn:toMove}, mv.from, mv.to);
-        if(!sim) continue;
-        const val = minimax(game, sim.board, depth-1, opp(toMove), perspective, alpha, beta, level);
-        best = Math.max(best, val);
-        alpha = Math.max(alpha, best);
-        if(beta <= alpha) break;
-      }
-      return best;
-    }else{
-      let best = Infinity;
-      for(const mv of limited){
-        const sim = simulateMove({...game, board, turn:toMove}, mv.from, mv.to);
-        if(!sim) continue;
-        const val = minimax(game, sim.board, depth-1, opp(toMove), perspective, alpha, beta, level);
-        best = Math.min(best, val);
-        beta = Math.min(beta, best);
-        if(beta <= alpha) break;
-      }
-      return best;
-    }
+    scored.sort((a,b)=>b.s-a.s);
+    return scored[0].mv;
   }
 
   async function maybeCpuAct(){
@@ -1266,23 +1311,12 @@
     let safety = 0;
     while(!game.gameOver && game.players[game.turn] === 'cpu' && safety < 30){
       safety += 1;
-
-      if(game.inChain && !game.settings.chainCapture){
-        game.inChain = false;
-        game.chainPieceId = null;
-        game.turn = opp(game.turn);
-        renderAll();
-        break;
-      }
-
       const mv = chooseMoveAI(game);
       if(!mv){
         game.endGame(opp(game.turn), '（無合法步）', {playWin:false});
         break;
       }
-
       game.tryMove(mv.from, mv.to);
-
       renderAll();
       await sleep(220);
     }
@@ -1291,7 +1325,7 @@
   function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
 
   // -----------------------------
-  // Dice (first move selection) + Sounds
+  // Dice (sounds)
   // -----------------------------
   function weightedDiceForCpu(levelKey){
     const lvl = CPU_LEVELS[levelKey] || CPU_LEVELS.normal;
@@ -1330,7 +1364,6 @@
 
     const rowR = makeDiceRow('紅方', 'red');
     const rowB = makeDiceRow('黑方', 'black');
-
     box.appendChild(rowR.row);
     box.appendChild(rowB.row);
 
@@ -1346,7 +1379,7 @@
     const btnStop = document.createElement('button');
     btnStop.textContent = '停';
     btnStop.className = 'primary';
-    btnStop.onclick = () => stopNow(true);
+    btnStop.onclick = () => stopNow();
 
     const btnCancel = document.createElement('button');
     btnCancel.textContent = '取消';
@@ -1389,7 +1422,6 @@
       if(phase==='r') rowR.valueEl.textContent = String(val);
       else rowB.valueEl.textContent = String(val);
 
-      // Dice rolling sound (throttled inside AudioManager)
       AudioManager.play('diceTick');
     }
 
@@ -1401,22 +1433,20 @@
 
       if(firstMethod === 'diceAuto'){
         const delay = isCpu(color) ? 380 : 520;
-        window.setTimeout(() => stopNow(false), delay + Math.floor(Math.random()*240));
+        window.setTimeout(() => stopNow(), delay + Math.floor(Math.random()*240));
       }else{
         if(isCpu(color)){
-          window.setTimeout(() => stopNow(false), 520 + Math.floor(Math.random()*320));
+          window.setTimeout(() => stopNow(), 520 + Math.floor(Math.random()*320));
         }
       }
     }
 
-    function stopNow(isHumanPress){
+    function stopNow(){
       const shown = phase==='r' ? rowR.valueEl.textContent : rowB.valueEl.textContent;
       const val = parseInt(shown, 10);
       if(Number.isNaN(val)) return;
 
-      // Stop sound
       AudioManager.play('diceStop');
-
       setVal(phase, val);
 
       if(phase === 'r'){
@@ -1533,8 +1563,7 @@
           const hit = game.legalMoves.find(m => m.r===r && m.c===c);
           if(hit){
             const target = game.board[r][c];
-            if(target) cell.classList.add('hintCapture');
-            else cell.classList.add('hintMove');
+            cell.classList.add(target ? 'hintCapture' : 'hintMove');
           }
         }
 
@@ -1557,10 +1586,8 @@
     const modeText = game.config.mode === 'pvp' ? '雙人模式' : `玩家 vs CPU（${CPU_LEVELS[game.cpuLevel]?.name || game.cpuLevel}）`;
     const boardText = game.config.boardMode === 'big' ? '大盤 9×10' : '小盤 9×5（全蓋）';
 
-    let extra = '';
-    if(game.config.boardMode === BOARD_MODE.SMALL && game.inChain){
-      extra = '｜連吃中（必須走到空格才能停）';
-    }
+    const extra = (game.config.boardMode === BOARD_MODE.SMALL && game.inChain)
+      ? '｜連吃中（必須走到空格才能停）' : '';
 
     statusLine.textContent = `${boardText}｜${modeText}｜輪到：${turnText}${extra}`;
 
@@ -1584,8 +1611,6 @@
     const isSmall = game.config.boardMode === BOARD_MODE.SMALL;
     inDarkCapture.disabled = !isSmall;
     inChainCapture.disabled = !isSmall;
-
-    if(!subStatusLine.textContent) subStatusLine.textContent = '';
   }
 
   function renderHistory(){
@@ -1614,12 +1639,11 @@
     const pos = {r,c};
     const p = game.board[r][c];
 
-    // Chain: only the chain piece can be moved
+    // Chain: only chain piece can move
     if(game.inChain){
       const chainPos = findPieceById(game.board, game.chainPieceId);
       if(chainPos){
         if(chainPos.r===r && chainPos.c===c){
-          // reselect same piece
           selectPiece(pos);
           return;
         }
@@ -1640,19 +1664,17 @@
       if(p && p.color === game.turn){
         selectPiece(pos);
       }else{
-        // click empty or enemy without selection -> no move, treat as soft error
         AudioManager.play('error');
       }
       return;
     }
 
-    // already selected
     if(p && p.color === game.turn){
-      if(game.selected && game.selected.r===r && game.selected.c===c){
+      if(game.selected.r===r && game.selected.c===c){
         // cancel
         game.selected = null;
         game.legalMoves = [];
-        AudioManager.play('select'); // cancel sound (reuse)
+        AudioManager.play('select');
         renderAll();
         return;
       }
@@ -1667,7 +1689,6 @@
     const p = game.board[pos.r][pos.c];
     if(!p) return;
     if(p.color !== game.turn) return;
-
     if(game.inChain && p.id !== game.chainPieceId) return;
 
     game.selected = pos;
@@ -1678,15 +1699,13 @@
 
   function attemptMove(toPos){
     if(!game.selected) return;
-    const from = game.selected;
     const ok = game.legalMoves.some(m => m.r===toPos.r && m.c===toPos.c);
     if(!ok){
       AudioManager.play('error');
       setSubStatus('不合法的目的地。');
       return;
     }
-
-    game.tryMove(from, toPos);
+    game.tryMove(game.selected, toPos);
   }
 
   function findPieceById(board, id){
@@ -1707,11 +1726,7 @@
     const save = game.toSave();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
   }
-
-  function clearSave(){
-    localStorage.removeItem(STORAGE_KEY);
-  }
-
+  function clearSave(){ localStorage.removeItem(STORAGE_KEY); }
   function tryLoadSave(){
     const raw = localStorage.getItem(STORAGE_KEY);
     if(!raw) return null;
@@ -1719,9 +1734,7 @@
       const save = JSON.parse(raw);
       if(!save || save.version !== 2) return null;
       return save;
-    }catch(_e){
-      return null;
-    }
+    }catch(_e){ return null; }
   }
 
   // -----------------------------
@@ -1730,11 +1743,9 @@
   function openModal({title, bodyHTML, bodyNode, actions}){
     modalTitle.textContent = title || '提示';
     modalBody.innerHTML = '';
-    if(bodyNode){
-      modalBody.appendChild(bodyNode);
-    }else{
-      modalBody.innerHTML = bodyHTML || '';
-    }
+    if(bodyNode) modalBody.appendChild(bodyNode);
+    else modalBody.innerHTML = bodyHTML || '';
+
     modalActions.innerHTML = '';
     (actions || []).forEach(a => {
       const b = document.createElement('button');
@@ -1743,6 +1754,7 @@
       b.onclick = () => { if(a.onClick) a.onClick(); };
       modalActions.appendChild(b);
     });
+
     modalOverlay.classList.remove('hidden');
     modalOverlay.setAttribute('aria-hidden', 'false');
   }
@@ -1771,18 +1783,7 @@
     const dangerHints = $('optDangerHints').checked;
     const soundOn = $('optSound').checked;
 
-    return {
-      mode,
-      boardMode,
-      cpuLevel,
-      firstMethod,
-      manualFirst,
-      darkCapture: dark,
-      chainCapture: chain,
-      moveHints,
-      dangerHints,
-      soundOn,
-    };
+    return { mode, boardMode, cpuLevel, firstMethod, manualFirst, darkCapture: dark, chainCapture: chain, moveHints, dangerHints, soundOn };
   }
 
   function updateMenuVisibility(){
@@ -1800,7 +1801,6 @@
   // -----------------------------
   function startNewGameFromMenu(){
     const cfg0 = getMenuConfig();
-
     const cfg = {
       mode: cfg0.mode,
       boardMode: cfg0.boardMode,
@@ -1828,15 +1828,12 @@
       return;
     }
 
-    openDiceModal(cfg0.firstMethod, cfg, (startTurn) => {
-      startGameWithTurn(startTurn);
-    });
+    openDiceModal(cfg0.firstMethod, cfg, (startTurn) => startGameWithTurn(startTurn));
   }
 
   function restartSameConfig(){
     if(!game.config) return;
     const cfg = {...game.config};
-    cfg.startTurn = game.config.startTurn || COLOR.RED;
     cfg.darkCapture = game.settings.darkCapture;
     cfg.chainCapture = game.settings.chainCapture;
     cfg.moveHints = game.settings.moveHints;
@@ -1851,9 +1848,7 @@
   }
 
   function toMenu(save=true){
-    if(save && game.config){
-      autoSaveIfPlaying();
-    }
+    if(save && game.config) autoSaveIfPlaying();
     showScreen('menu');
     updateMenuVisibility();
   }
@@ -1870,7 +1865,6 @@
     const defender = game.checkWindow.defender;
 
     if(isInCheck(game, game.board, defender)){
-      // victory sound
       AudioManager.play('win');
       game.endGame(attacker, '（手動按下「將軍！」）', {playWin:false});
     }else{
@@ -1888,26 +1882,19 @@
     inSound.addEventListener('change', () => {
       game.settings.soundOn = inSound.checked;
       AudioManager.setEnabled(game.settings.soundOn);
-      // feedback
-      if(game.settings.soundOn){
-        AudioManager.play('select');
-      }
+      if(game.settings.soundOn) AudioManager.play('select');
       renderAll();
     });
 
-    inMoveHints.addEventListener('change', () => {
-      game.settings.moveHints = inMoveHints.checked;
-      renderAll();
-    });
-    inDangerHints.addEventListener('change', () => {
-      game.settings.dangerHints = inDangerHints.checked;
-      renderAll();
-    });
+    inMoveHints.addEventListener('change', () => { game.settings.moveHints = inMoveHints.checked; renderAll(); });
+    inDangerHints.addEventListener('change', () => { game.settings.dangerHints = inDangerHints.checked; renderAll(); });
+
     inDarkCapture.addEventListener('change', () => {
       if(game.config.boardMode !== BOARD_MODE.SMALL) return;
       game.settings.darkCapture = inDarkCapture.checked;
       renderAll();
     });
+
     inChainCapture.addEventListener('change', () => {
       if(game.config.boardMode !== BOARD_MODE.SMALL) return;
       const wasOn = game.settings.chainCapture;
@@ -1967,6 +1954,7 @@
     document.querySelectorAll('input[name="firstMethod"]').forEach(el => el.addEventListener('change', updateMenuVisibility));
 
     btnStart.addEventListener('click', startNewGameFromMenu);
+
     btnClearSave.addEventListener('click', () => {
       clearSave();
       openModal({
@@ -1976,9 +1964,7 @@
       });
     });
 
-    // menu sound toggle live
     optSound?.addEventListener('change', () => {
-      // only affect AudioManager preview; actual game uses config
       AudioManager.setEnabled(optSound.checked);
       if(optSound.checked) AudioManager.play('select');
     });
@@ -1986,18 +1972,14 @@
 
   function wireGameButtons(){
     btnRestart.addEventListener('click', () => restartSameConfig());
-    btnToMenu.addEventListener('click', () => {
-      autoSaveIfPlaying();
-      toMenu(true);
-    });
+    btnToMenu.addEventListener('click', () => { autoSaveIfPlaying(); toMenu(true); });
     btnCheckWin.addEventListener('click', onCheckWinClick);
   }
 
-  // Autoplay unlock: first user gesture enables audio.
+  // Autoplay unlock (first user gesture)
   function wireAutoplayUnlock(){
-    const unlockOnce = () => {
-      AudioManager.unlock();
-      // If menu sound enabled, give a tiny feedback without spamming
+    const unlockOnce = async () => {
+      await AudioManager.unlock();
       if(optSound && optSound.checked) AudioManager.play('select');
       window.removeEventListener('pointerdown', unlockOnce);
       window.removeEventListener('keydown', unlockOnce);
@@ -2023,13 +2005,12 @@
 
     updateMenuVisibility();
 
-    // Default toggles
+    // Defaults
     inSound.checked = true;
     inMoveHints.checked = true;
     inDangerHints.checked = false;
     inDarkCapture.checked = true;
     inChainCapture.checked = true;
-
     if(optSound) optSound.checked = true;
 
     AudioManager.setEnabled(true);
