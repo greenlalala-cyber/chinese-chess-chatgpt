@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>冠冠中國象棋 2</title>
+  <title>中國象棋 Xiangqi</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -23,7 +23,7 @@
     <!-- Menu Screen -->
     <section id="menuScreen" class="screen">
       <header class="header">
-        <h1>冠冠中國象棋</h1>
+        <h1>中國象棋（Xiangqi）</h1>
         <p class="sub">離線單機版（HTML/CSS/JS）</p>
       </header>
 
@@ -57,7 +57,7 @@
       </div>
 
       <div class="panel">
-        <h2>4) 先手/後手決定方式</h2>
+        <h2>4) 先手/後手決定方式（新增骰子規則）</h2>
         <div class="col">
           <label><input type="radio" name="firstMethod" value="manual" checked> 玩家自選先/後手</label>
           <label><input type="radio" name="firstMethod" value="diceAuto"> 隨機決定（骰子）</label>
@@ -89,6 +89,10 @@
         </div>
         <div class="row">
           <label><input type="checkbox" id="optDangerHints"> 危險區域提示（顯示對手可攻擊格，預設關）</label>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="optSound" checked> 音效（預設開）</label>
+          <span class="hintText">注意：瀏覽器需先有一次點擊/觸控後才允許播放。</span>
         </div>
       </div>
 
@@ -127,6 +131,10 @@
         <aside class="sidePanel">
           <div class="panel">
             <h3>遊戲內設定</h3>
+
+            <div class="row">
+              <label class="toggle"><input type="checkbox" id="inSound"> 音效</label>
+            </div>
 
             <div class="row">
               <label class="toggle"><input type="checkbox" id="inMoveHints"> 棋步提示</label>
