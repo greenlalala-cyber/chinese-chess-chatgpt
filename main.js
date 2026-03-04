@@ -2,15 +2,128 @@
    - Big board: standard rules; win by giving CHECK and pressing "將軍！"
    - Small board: 9x5, all pieces face-down; optional Dark Capture / Chain Capture.
    - PvP and PvCPU, dice for first move, move hints & danger zones, localStorage save.
+   - Audio system: AudioManager module with autoplay-unlock, pooling, and event sounds.
 */
 
 (() => {
   'use strict';
 
   // -----------------------------
+  // Audio Manager (獨立音效管理模組)
+  // -----------------------------
+  // 佔位音檔（Base64 WAV 短音）——離線可用
+  // ✅ 你可以把每個 src 換成本地檔案，例如：
+  //    src: "./sounds/move.mp3"
+  const AudioManager = (() => {
+    const sounds = {
+      // 請在此替換為您的本地檔案（例如 ./sounds/select.mp3）
+      select:   { src: "data:audio/wav;base64,UklGRmYTAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YUITAACfA2kHA9kK4g0aE5wW0xmOHGoeFSB7Ii0mGCiQKfYp0ilpJDElsyJzH7Yg8h3tG7UZVhXTEYgQmA8MD8kQKxJQGv8g4x8mHuUbWxbxFSoU0w6eC8AL7QnqCe0JQwiMBfMBiwJ8AiEBDwCk/9z+Sv3y/Gf73fnG+M/30vZV9bHy1O1o7r7xQfLS9xX5bP1v+mf6Vvkj+O/6Sv5A/An8U/0w/nr+uv7m/uj+1/5Q/mz+rf7u/ov+Vf4w/hn+e/2y/0T8Gfxw/Tf+mP5j/y7/5/7k/p3+3P5E/v7+0v7k/uL+1v7d/ur+Uf4H/er+hf6C/mn+0/7w/uP+0/7T/t3+Yv6O/tH+3P7k/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4G/er+g/6C/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4C/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4C/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4B/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4B/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv39/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv39/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv38/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv38/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv38/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv38/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv38/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv37/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv36/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sw==", pool: 6, volume: 0.55 },
+      move:     { src: "data:audio/wav;base64,UklGRq4bAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YYoTAACRAtcE6wYbCw0P8hWvGkYfXSVgK6Yu2y+QL8Qvny/HL94v6C7pL+st9y3pIeUU5L/kK+R75GHo7epr6yLuXvC+8u7y9fXx+G/5F/pe+1b9xP0L/PP9x/7o/7r+6P5E/vb+0P7j/ur+Uf4H/er+hf6C/mn+0/7w/uP+0/7T/t3+Yv6O/tH+3P7k/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4G/er+g/6C/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sf4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4F/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4E/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4D/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4C/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4C/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4B/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4B/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv4A/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sv39/er+g/6B/mj+0f7v/uT+0/7U/tz+Yv6P/tH+3f7j/uf+8v7u/ub+9P7m/ur+Yv6q/tH+4/7u/vj++f7m/u7+2f7d/uz+Sw==", pool: 6, volume: 0.50 },
+      capture:  { src: "data:audio/wav;base64,UklGRn4kAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YVoUAACQAyMHCwqoD8MWsBriH5Im+SvpL+wvxS/OL9kv3S7sL/Mx6CHk2+Qr5XvoceqN6y/uWvJb8xvzHfZl+Gf6Y/qa/Rz9L/4J/af+2/6B/hX+Kv4o/sT+0P7G/tT+Wv6c/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6b/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6c/u/+0v7p/uL+4P7F/uz+W/6d/u/+0v7p/uL+4P7F/uz+Ww==", pool: 6, volume: 0.55 },
+      error:    { src: "data:audio/wav;base64,UklGRo4vAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YWoVAACaA+0F1gm3DpgS9xolH8wmxC8ALiQv9i8xLwEw8S7BLIUsByh0HkIWzBF6DywIYgQdAOr/2f4J/VH7sPk+97H1q/PO7bTtZO5l8X3w2fiw+J/4iPvm/ez9aP8M/2H+uf7b/s3+uf7X/tT+vP7o/t7+Zf6x/t3+8P7t/uL+9v7x/u3+zP7W/t7+yf7s/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7t/uH+9P7z/u7+0f7Z/t7+yw==", pool: 6, volume: 0.50 },
+      check:    { src: "data:audio/wav;base64,UklGRvo2AABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YdYVAACYA8QGvQoMEb4XHh2iI1UqfzAqNzc9UUxFVFhWWF5bX2tlbGZ5cHh7fHt8fnt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3p8fHt7fnt7fHt6e3V2cnBtbm5wb3F1dXl2eHh3e3o=", pool: 4, volume: 0.55 },
+      win:      { src: "data:audio/wav;base64,UklGRqg6AABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YYQWAACSA2kHDhB0G4YiMS1WOFxvYH9kfGJjZWNraWZpd2RkZ2lmbGZpZmlndmRma2ZkbGZlZmlmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2lmbWZlZ2k=", pool: 3, volume: 0.60 },
+
+      diceTick: { src: "data:audio/wav;base64,UklGRlYJAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YTIJAACbA3gG+Qj1C+MN4w/fE8QWmRiQG/0f0iKkJvQoJSlkKO4n2iW8JwklFh4O1gvjC+IK3QmXCTcFvwL+ACr/5P5e/ef8AfyP+g35vvYr9S3yPvB+7f7xgfQk+PX5JfrE+4b88f4c/ov+O/5g/Rv+1P7b/tb+V/5m/eP+Qv9M/7n+TP6A/vb+Yf8Q/23+wf6t/qf+8P7j/u3+Sv7m/9D8qf4H/2v+T/5v/ov+I/9M/7L+5/5G/gv+4v7X/0H9Hv4Z/7L+Of6D/sv+Lf/J/5r+8P6Q/uX+gv6V/df+R/7o/u7+Qv5L/xT+Z/6R/oj+kv7Q/zz+wf4k/1H+8P7o/tD+Nv9A/tT+f/7p/7r+Wv5w/0D+8/7w/ur+RP5d/0b+cv4o/2v+av5Q/9T+4f7k/uj+sf4X/yf+Q/4d/6z+o/7h/tT+Nv9c/0T+8P7s/u7+af4U/zX+Pf4m/8L+ef7X/0P9IP4b/8L+Ov6E/sz+LP/O/5z+8f6Q/uX+gv6V/df+R/7o/u7+Qv5L/xT+Z/6R/oj+kv7Q/zz+wf4k/1H+8P7o/tD+Nv9A/tT+f/7p/7r+Wv5w/0D+8/7w/ur+RP5d/0b+cv4o/2v+av5Q/9T+4f7k/uj+sf4X/yf+Q/4d/6z+o/7h/tT+Nv9c/0T+8P7s/u7+af4U/zX+Pf4m/8L+ef7X/0P9IP4b/8L+Ov6E/sz+LP/O/5z+8f6Q/uX+gv6V/df+R/7o/u7+Qv5L/xT+Z/6R/oj+kv7Q/zz+wf4k/1H+8P7o/tD+Nv9A/tT+f/7p/7r+Wv5w/0D+8/7w/ur+RP5d/0b+cv4o/2v+av5Q/9T+4f7k/uj+sf4X/yf+Q/4d/6z+o/7h/tT+Nv9c/0T+8P7s/u7+af4U/zX+Pf4m/8L+ef7X/0P9IP4b/8L+Ov6E/sz+LP/O/5z+8f6Q/uX+gv6V/df+R/7o/u7+Qv5L/xT+Z/6R/oj+kv7Q/zz+wf4k/1H+8P7o/tD+Nv9A/tT+f/7p/7r+Wv5w/0D+8/7w/ur+RP5d/0b+cv4o/2v+av5Q/9T+4f7k/uj+sf4X/yf+Q/4d/6z+o/7h/tT+Nv9c/0T+8P7s/u7+af4U/zX+Pf4m/8L+ef7X/0P9IP4b/8L+Ov6E/sz+LP/O/5z+8f6Q/uX+gv6V/df+R/7o/u7+Qv5L/xT+Z/6R/oj+kv7Q/zz+wf4k/1H+8P7o/tD+Nv9A/tT+f/7p/7r+Wv5w/0D+8/7w/ur+RP5d/0b+cv4o/2v+av5Q/9T+4f7k/uj+sf4X/yf+Q/4d/6z+o/7h/tT+Nv9c/0T+8P7s/u7+af4U/zX+Pg==", pool: 10, volume: 0.30, throttleMs: 70 },
+      diceStop: { src: "data:audio/wav;base64,UklGRo4vAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YWoVAACaA+0F1gm3DpgS9xolH8wmxC8ALiQv9i8xLwEw8S7BLIUsByh0HkIWzBF6DywIYgQdAOr/2f4J/VH7sPk+97H1q/PO7bTtZO5l8X3w2fiw+J/4iPvm/ez9aP8M/2H+uf7b/s3+uf7X/tT+vP7o/t7+Zf6x/t3+8P7t/uL+9v7x/u3+zP7W/t7+yf7s/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7r/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7s/uH+9P7z/u7+0f7Z/t7+yv7t/uH+9P7z/u7+0f7Z/t7+yw==", pool: 4, volume: 0.45 },
+    };
+
+    let enabled = true;
+    let unlocked = false;
+    const pools = new Map(); // name -> Audio[]
+    const lastPlayAt = new Map(); // name -> timestamp ms
+
+    function buildPool(name){
+      const cfg = sounds[name];
+      if(!cfg) return [];
+      const pool = [];
+      const n = cfg.pool ?? 4;
+      for(let i=0;i<n;i++){
+        const a = new Audio(cfg.src);
+        a.preload = 'auto';
+        a.volume = cfg.volume ?? 0.6;
+        pool.push(a);
+      }
+      return pool;
+    }
+
+    function init(){
+      for(const name of Object.keys(sounds)){
+        pools.set(name, buildPool(name));
+      }
+    }
+
+    function setEnabled(on){
+      enabled = !!on;
+    }
+
+    function isEnabled(){ return enabled; }
+
+    // Autoplay policy: must happen after a user gesture.
+    // We mark unlocked after first pointer/key gesture and attempt a silent play to warm up.
+    function unlock(){
+      if(unlocked) return;
+      unlocked = true;
+
+      // Attempt a very short play on a muted audio to satisfy some browsers.
+      // We catch promise rejection to avoid console errors.
+      try{
+        const pool = pools.get('select');
+        if(pool && pool[0]){
+          const a = pool[0].cloneNode(true);
+          a.muted = true;
+          const p = a.play();
+          if(p && typeof p.catch === 'function') p.catch(() => {});
+          window.setTimeout(() => { a.pause(); }, 50);
+        }
+      }catch(_e){}
+    }
+
+    function play(name){
+      if(!enabled) return;
+      if(!unlocked) return; // do nothing until user gesture
+      const cfg = sounds[name];
+      if(!cfg) return;
+
+      // throttle (useful for dice rolling)
+      if(cfg.throttleMs){
+        const now = performance.now();
+        const last = lastPlayAt.get(name) ?? -Infinity;
+        if(now - last < cfg.throttleMs) return;
+        lastPlayAt.set(name, now);
+      }
+
+      const pool = pools.get(name) || [];
+      if(pool.length === 0) return;
+
+      // Find an available audio element; if all busy, clone and play.
+      let chosen = null;
+      for(const a of pool){
+        if(a.paused || a.ended){
+          chosen = a;
+          break;
+        }
+      }
+      if(!chosen){
+        chosen = pool[0].cloneNode(true);
+        chosen.volume = pool[0].volume;
+      }
+
+      try{
+        chosen.currentTime = 0;
+        const p = chosen.play();
+        if(p && typeof p.catch === 'function') p.catch(() => {});
+      }catch(_e){}
+    }
+
+    init();
+    return { setEnabled, isEnabled, unlock, play };
+  })();
+
+  // -----------------------------
   // Constants & Utilities
   // -----------------------------
-  const STORAGE_KEY = 'xiangqi_save_v1';
+  const STORAGE_KEY = 'xiangqi_save_v2_audio';
 
   const COLOR = { RED: 'r', BLACK: 'b' };
   const MODE = { PVC: 'pvcpu', PVP: 'pvp' };
@@ -28,10 +141,7 @@
     b: { K:'將', A:'士', B:'象', N:'馬', R:'車', C:'炮', P:'卒' },
   };
 
-  // Dark-capture size ranking (bigger wins). Pawn is smallest.
-  // Special rule: Pawn/卒 can capture King/帥 in SMALL board (override).
   const SIZE_RANK = { P:1, A:2, B:3, C:4, N:5, R:6, K:7 };
-
   const PIECE_VALUE = { P:100, A:250, B:260, N:320, C:360, R:520, K:20000 };
 
   const DIRS4 = [
@@ -45,7 +155,6 @@
   function deepCloneBoard(board){
     return board.map(row => row.map(cell => cell ? ({...cell}) : null));
   }
-
   function samePos(a,b){ return a && b && a.r===b.r && a.c===b.c; }
 
   // -----------------------------
@@ -73,10 +182,14 @@
   const btnToMenu = $('btnToMenu');
   const btnCheckWin = $('btnCheckWin');
 
+  const inSound = $('inSound');
   const inMoveHints = $('inMoveHints');
   const inDangerHints = $('inDangerHints');
   const inDarkCapture = $('inDarkCapture');
   const inChainCapture = $('inChainCapture');
+
+  // Menu sound
+  const optSound = $('optSound');
 
   // Modal
   const modalOverlay = $('modalOverlay');
@@ -99,6 +212,7 @@
       this.cpuLevel = 'normal';
 
       this.settings = {
+        soundOn: true,
         darkCapture: true,
         chainCapture: true,
         moveHints: true,
@@ -108,8 +222,7 @@
       this.inChain = false;
       this.chainPieceId = null;
 
-      // Big-board "check button" window: attacker can click to win if defender is still in check.
-      this.checkWindow = null; // { attacker:'r'|'b', defender:'r'|'b', expiresOnMove: number }
+      this.checkWindow = null;
       this.moveCount = 0;
 
       this.gameOver = false;
@@ -118,12 +231,15 @@
 
       this.history = [];
       this.idCounter = 1;
+
+      // For one-shot check warning audio (avoid spamming)
+      this.lastCheckState = { r:false, b:false };
     }
 
     resetRuntimeOnly(){
-      this.selected = null;           // {r,c}
-      this.legalMoves = [];          // list of {r,c, capture:boolean}
-      this.dangerSquares = new Set(); // "r,c"
+      this.selected = null;
+      this.legalMoves = [];
+      this.dangerSquares = new Set();
     }
 
     nextId(){ return this.idCounter++; }
@@ -134,11 +250,13 @@
       this.cpuLevel = config.cpuLevel || 'normal';
 
       this.settings = {
+        soundOn: config.soundOn ?? true,
         darkCapture: !!config.darkCapture,
         chainCapture: !!config.chainCapture,
         moveHints: !!config.moveHints,
         dangerHints: !!config.dangerHints,
       };
+      AudioManager.setEnabled(this.settings.soundOn);
 
       if(config.mode === MODE.PVC){
         this.players = { r:'human', b:'cpu' };
@@ -166,12 +284,14 @@
       this.endReason = '';
       this.history = [];
 
+      this.lastCheckState = { r:false, b:false };
+
       this.pushHistory(`新局開始：${config.boardMode==='big'?'大盤':'小盤'}，${config.mode==='pvp'?'雙人':'玩家vsCPU'}，先手：${this.turn==='r'?'紅':'黑'}`);
     }
 
     toSave(){
       return {
-        version: 1,
+        version: 2,
         savedAt: Date.now(),
         config: this.config,
         cpuLevel: this.cpuLevel,
@@ -191,6 +311,7 @@
         history: this.history,
         idCounter: this.idCounter,
         board: this.board,
+        lastCheckState: this.lastCheckState,
       };
     }
 
@@ -200,6 +321,8 @@
       this.cpuLevel = save.cpuLevel || 'normal';
       this.players = save.players || {r:'human', b:'human'};
       this.settings = save.settings || this.settings;
+      AudioManager.setEnabled(this.settings.soundOn ?? true);
+
       this.rows = save.rows; this.cols = save.cols;
       this.turn = save.turn;
       this.inChain = !!save.inChain;
@@ -212,6 +335,7 @@
       this.history = save.history || [];
       this.idCounter = save.idCounter || 1;
       this.board = save.board;
+      this.lastCheckState = save.lastCheckState || { r:false, b:false };
     }
 
     pushHistory(line){
@@ -219,27 +343,20 @@
       if(this.history.length > 300) this.history.shift();
     }
 
-    // ---------------------------------------------------------
-    // Move Generation & Validation (legal moves)
-    // ---------------------------------------------------------
     getLegalMovesForPiece(pos){
       const piece = this.board[pos.r][pos.c];
       if(!piece) return [];
       if(piece.color !== this.turn) return [];
 
-      // Chain: only the chain piece can be moved.
       if(this.inChain && piece.id !== this.chainPieceId) return [];
 
       const pseudo = getPseudoMoves(this, pos, piece);
-      // Filter by king safety and "facing generals" rule in both boards.
       const legal = [];
       for(const m of pseudo){
         const sim = simulateMove(this, pos, m, {forLegality:true});
-        if(!sim) continue; // illegal due to rules
+        if(!sim) continue;
         const {board: b2} = sim;
-        // Must not leave own king in check.
         if(isInCheck(this, b2, this.turn)) continue;
-        // Must not leave kings facing.
         if(areKingsFacing(this, b2)) continue;
         legal.push(m);
       }
@@ -254,9 +371,6 @@
       for(const key of attacked) this.dangerSquares.add(key);
     }
 
-    // ---------------------------------------------------------
-    // Apply a move to the real game state
-    // ---------------------------------------------------------
     tryMove(from, to){
       if(this.gameOver) return;
 
@@ -265,11 +379,14 @@
 
       const legal = this.getLegalMovesForPiece(from);
       const isLegal = legal.some(m => m.r===to.r && m.c===to.c);
-      if(!isLegal) return;
+      if(!isLegal){
+        AudioManager.play('error');
+        setSubStatus('不合法的走法。');
+        return;
+      }
 
       const moverColor = this.turn;
 
-      // If defender is about to move, any pending "將軍按鈕勝利" window is lost.
       if(this.config.boardMode === BOARD_MODE.BIG && this.checkWindow && this.checkWindow.defender === moverColor){
         this.checkWindow = null;
       }
@@ -281,43 +398,60 @@
 
       if(result.message) this.pushHistory(result.message);
 
-      // Game over check
+      // Move / Capture / Error sound based on result classification
+      if(result.sound){
+        AudioManager.play(result.sound);
+      }
+
       if(result.gameOver){
-        this.endGame(result.winner, result.reason);
+        this.endGame(result.winner, result.reason, {playWin: true});
         return;
       }
 
-      // Big board: after mover's move, if the opponent is in check -> attacker can press "將軍！" to win.
+      // Big board: check window
       if(this.config.boardMode === BOARD_MODE.BIG){
         const defender = this.turn;
         const attacker = opp(defender);
-        const inCheck = isInCheck(this, this.board, defender);
-        if(inCheck){
+
+        const inCheckNow = isInCheck(this, this.board, defender);
+        if(inCheckNow){
           this.checkWindow = { attacker, defender, expiresOnMove: this.moveCount + 1 };
-          // If CPU is attacker, auto claim win (show prompt but then win).
+          setSubStatus(`⚠️ ${attacker==='r'?'紅':'黑'}方將軍！可按「將軍！」立即獲勝（若略過，對手解除後就無效）。`);
+
+          // play warning only on transition into check
+          if(!this.lastCheckState[defender]){
+            AudioManager.play('check');
+          }
+          this.lastCheckState[defender] = true;
+
           if(this.players[attacker] === 'cpu'){
-            setSubStatus(`⚠️ ${attacker==='r'?'紅':'黑'}方將軍！CPU 將自動按「將軍！」獲勝。`);
             renderAll();
             window.setTimeout(() => {
-              // Confirm still in check and window still valid
               if(this.checkWindow && this.checkWindow.attacker === attacker && isInCheck(this, this.board, defender)){
-                this.endGame(attacker, '（CPU 自動按下「將軍！」）');
+                this.endGame(attacker, '（CPU 自動按下「將軍！」）', {playWin: true});
               }
             }, 600);
-          }else{
-            setSubStatus(`⚠️ ${attacker==='r'?'紅':'黑'}方將軍！可按「將軍！」立即獲勝（若略過，對手下一步解除後就無效）。`);
           }
         }else{
           this.checkWindow = null;
+          this.lastCheckState[defender] = false;
+          setSubStatus('');
         }
 
-        // Defender is in check => show warning
-        if(isInCheck(this, this.board, this.turn)){
+        // If current player is in check (defender's turn)
+        const selfInCheck = isInCheck(this, this.board, this.turn);
+        if(selfInCheck){
+          // only play when becoming checked
+          if(!this.lastCheckState[this.turn]){
+            AudioManager.play('check');
+          }
+          this.lastCheckState[this.turn] = true;
           setSubStatus(`⚠️ ${this.turn==='r'?'紅':'黑'}方被將軍，必須應對。`);
+        }else{
+          this.lastCheckState[this.turn] = false;
         }
       }
 
-      // Small board: chain capture continuation
       if(this.config.boardMode === BOARD_MODE.SMALL){
         if(this.inChain){
           setSubStatus(`連吃中：必須走到空格才能停止並換手。`);
@@ -327,12 +461,10 @@
       }
 
       renderAll();
-
-      // CPU turn if needed
       maybeCpuAct();
     }
 
-    endGame(winnerColor, reason){
+    endGame(winnerColor, reason, {playWin=false} = {}){
       this.gameOver = true;
       this.winner = winnerColor;
       this.endReason = reason || '';
@@ -343,6 +475,9 @@
 
       const winnerText = winnerColor === 'r' ? '紅方' : '黑方';
       this.pushHistory(`🏁 結束：${winnerText}獲勝 ${this.endReason || ''}`);
+
+      if(playWin) AudioManager.play('win');
+
       renderAll();
       openModal({
         title: '遊戲結束',
@@ -368,7 +503,7 @@
     const rows = 10, cols = 9;
     const board = Array.from({length: rows}, () => Array(cols).fill(null));
 
-    // Black side (top)
+    // Black
     board[0][0] = piece(game,'R','b',true);
     board[0][1] = piece(game,'N','b',true);
     board[0][2] = piece(game,'B','b',true);
@@ -386,7 +521,7 @@
       board[3][c] = piece(game,'P','b',true);
     }
 
-    // Red side (bottom)
+    // Red
     board[9][0] = piece(game,'R','r',true);
     board[9][1] = piece(game,'N','r',true);
     board[9][2] = piece(game,'B','r',true);
@@ -413,7 +548,7 @@
     const rows = 5, cols = 9;
     const board = Array.from({length: rows}, () => Array(cols).fill(null));
 
-    // Black (top)
+    // Black
     board[0][0] = piece(game,'R','b',false);
     board[0][1] = piece(game,'N','b',false);
     board[0][2] = piece(game,'B','b',false);
@@ -423,7 +558,7 @@
     board[1][2] = piece(game,'P','b',false);
     board[1][6] = piece(game,'P','b',false);
 
-    // Red (bottom)
+    // Red
     board[4][0] = piece(game,'R','r',false);
     board[4][1] = piece(game,'N','r',false);
     board[4][2] = piece(game,'B','r',false);
@@ -445,7 +580,6 @@
       if(color === 'b') return r >= 0 && r <= 2;
       return r >= 7 && r <= 9;
     }else{
-      // Small: palace is 3x2
       if(c < 3 || c > 5) return false;
       if(color === 'b') return r >= 0 && r <= 1;
       return r >= 3 && r <= 4;
@@ -454,11 +588,9 @@
 
   function riverCrossed(game, color, r){
     if(game.config.boardMode === BOARD_MODE.BIG){
-      // Big: river between rows 4 and 5. Red starts at bottom.
       if(color === 'r') return r <= 4;
       return r >= 5;
     }else{
-      // Small: middle row (2) is "river line"
       if(color === 'r') return r <= 2;
       return r >= 2;
     }
@@ -466,10 +598,9 @@
 
   function elephantAllowed(game, color, r){
     if(game.config.boardMode === BOARD_MODE.BIG){
-      if(color === 'r') return r >= 5; // red cannot cross to 0..4
+      if(color === 'r') return r >= 5;
       return r <= 4;
     }else{
-      // Small: elephants may step onto row 2 but not beyond.
       if(color === 'r') return r >= 2;
       return r <= 2;
     }
@@ -535,17 +666,13 @@
       }
     }else if(type === 'C'){
       for(const d of DIRS4){
-        // Move without capture until first piece
         let r = pos.r + d.dr, c = pos.c + d.dc;
         while(inside(r,c,rows,cols) && !b[r][c]){
           add(r,c);
           r += d.dr; c += d.dc;
         }
-        // Now b[r][c] is screen (if inside)
         if(!inside(r,c,rows,cols)) continue;
-        // Skip screen
         r += d.dr; c += d.dc;
-        // Find first piece after screen (capture only)
         while(inside(r,c,rows,cols)){
           if(b[r][c]){
             add(r,c);
@@ -587,7 +714,7 @@
     for(let r=r1; r<=r2; r++){
       if(board[r][col]) return false;
     }
-    return true; // facing with no pieces between is illegal
+    return true;
   }
 
   function isInCheck(game, board, color){
@@ -623,15 +750,13 @@
         }else if(type==='C'){
           for(const d of DIRS4){
             let rr=r+d.dr, cc=c+d.dc;
-            // before screen: move squares (not capture) => NOT dangerous for capture, so skip.
             while(inside(rr,cc,rows,cols) && !board[rr][cc]){
               rr+=d.dr; cc+=d.dc;
             }
             if(!inside(rr,cc,rows,cols)) continue;
-            // found screen at (rr,cc)
             rr+=d.dr; cc+=d.dc;
             while(inside(rr,cc,rows,cols)){
-              addKey(rr,cc); // squares after screen potentially capturable if occupied
+              addKey(rr,cc);
               if(board[rr][cc]) break;
               rr+=d.dr; cc+=d.dc;
             }
@@ -688,16 +813,13 @@
     return attacked;
   }
 
-  // Compare sizes for dark capture
   function darkCompare(game, attackerPiece, targetPiece){
-    // special: pawn can capture king in SMALL board
     if(game.config.boardMode === BOARD_MODE.SMALL && attackerPiece.type==='P' && targetPiece.type==='K'){
       return 'win';
     }
     const a = SIZE_RANK[attackerPiece.type] || 0;
     const t = SIZE_RANK[targetPiece.type] || 0;
-    if(a >= t) return 'win';
-    return 'lose';
+    return (a >= t) ? 'win' : 'lose';
   }
 
   // -----------------------------
@@ -713,7 +835,6 @@
 
     const target = board[to.r][to.c];
 
-    // Big: standard capture rules
     if(game.config.boardMode === BOARD_MODE.BIG){
       if(target && target.color === mover.color) return null;
       board[to.r][to.c] = mover;
@@ -721,7 +842,6 @@
       return {board};
     }
 
-    // Small:
     const darkOn = !!game.settings.darkCapture;
 
     if(!target){
@@ -730,15 +850,12 @@
       return {board};
     }
 
-    // Capturing onto a revealed own piece is illegal
     if(target.revealed && target.color === mover.color) return null;
 
-    // Dark capture only triggers on unrevealed target if enabled
     if(darkOn && !target.revealed){
       target.revealed = true;
 
       if(target.color === mover.color){
-        // revert move (no board movement), only reveal stays.
         return {board};
       }
 
@@ -753,7 +870,6 @@
       }
     }
 
-    // Non-dark: normal capture requires enemy piece (revealed or not)
     if(target.color === mover.color) return null;
     target.revealed = true;
     board[to.r][to.c] = mover;
@@ -762,7 +878,7 @@
   }
 
   // -----------------------------
-  // Apply move to real board (with chain/dark rules)
+  // Apply move to real board (with sound classification)
   // -----------------------------
   function applyMoveReal(game, from, to){
     const b = game.board;
@@ -774,15 +890,20 @@
     let gameOver = false;
     let winner = null;
     let reason = '';
+    let sound = null;
 
-    const coord = (p) => `(${p.r+1},${p.c+1})`; // 1-based
+    const coord = (p) => `(${p.r+1},${p.c+1})`;
     const moverName = (p) => (p.revealed ? GLYPH[p.color][p.type] : '蓋子');
 
     if(game.config.boardMode === BOARD_MODE.BIG){
-      if(target && target.color === mover.color) return {message:'非法：不能吃自己的棋'};
+      if(target && target.color === mover.color){
+        sound = 'error';
+        return {message:'非法：不能吃自己的棋', sound};
+      }
       b[to.r][to.c] = mover;
       b[from.r][from.c] = null;
 
+      sound = target ? 'capture' : 'move';
       message = `${moverColor==='r'?'紅':'黑'}：${GLYPH[moverColor][mover.type]} ${coord(from)}→${coord(to)}${target?` 吃 ${GLYPH[target.color][target.type]}`:''}`;
       game.turn = opp(moverColor);
       game.inChain = false;
@@ -793,7 +914,7 @@
         winner = moverColor;
         reason = '（吃掉對方將/帥）';
       }
-      return {message, gameOver, winner, reason};
+      return {message, gameOver, winner, reason, sound};
     }
 
     // Small board
@@ -801,59 +922,56 @@
     const chainOn = !!game.settings.chainCapture;
     const wasInChain = game.inChain;
 
-    // Move to empty square
     if(!target){
       b[to.r][to.c] = mover;
       b[from.r][from.c] = null;
+      sound = 'move';
 
       message = `${moverColor==='r'?'紅':'黑'}：${moverName(mover)} ${coord(from)}→${coord(to)}（空）`;
 
-      // Chain stop rule: moving to empty ends chain and passes turn
-      if(wasInChain && chainOn){
-        game.inChain = false;
-        game.chainPieceId = null;
-        game.turn = opp(moverColor);
-      }else{
-        game.inChain = false;
-        game.chainPieceId = null;
-        game.turn = opp(moverColor);
-      }
-      return {message, gameOver, winner, reason};
+      game.inChain = false;
+      game.chainPieceId = null;
+      game.turn = opp(moverColor);
+      return {message, gameOver, winner, reason, sound};
     }
 
     if(target.revealed && target.color === mover.color){
-      return {message:'非法：不能吃自己的棋（已翻開）'};
+      sound = 'error';
+      return {message:'非法：不能吃自己的棋（已翻開）', sound};
     }
 
     if(darkOn && !target.revealed){
       target.revealed = true;
 
       if(target.color === mover.color){
+        sound = 'error';
         message = `${moverColor==='r'?'紅':'黑'}：暗吃 ${coord(from)}→${coord(to)}，翻到自己的棋（${GLYPH[target.color][target.type]}）→ 退回，換對手`;
         game.inChain = false;
         game.chainPieceId = null;
         game.turn = opp(moverColor);
-        return {message, gameOver, winner, reason};
+        return {message, gameOver, winner, reason, sound};
       }
 
       const cmp = darkCompare(game, mover, target);
       if(cmp === 'lose'){
         b[from.r][from.c] = null;
+        sound = 'error';
         message = `${moverColor==='r'?'紅':'黑'}：暗吃 ${coord(from)}→${coord(to)}，翻到較大棋（${GLYPH[target.color][target.type]}）→ 自己死亡，換對手`;
         game.inChain = false;
         game.chainPieceId = null;
         game.turn = opp(moverColor);
-        return {message, gameOver, winner, reason};
+        return {message, gameOver, winner, reason, sound};
       }else{
         b[to.r][to.c] = mover;
         b[from.r][from.c] = null;
+        sound = 'capture';
         message = `${moverColor==='r'?'紅':'黑'}：暗吃 ${coord(from)}→${coord(to)}，翻到較小棋（${GLYPH[target.color][target.type]}）→ 吃到`;
 
         if(target.type === 'K'){
           gameOver = true;
           winner = moverColor;
           reason = '（小盤：吃掉對方將/帥）';
-          return {message, gameOver, winner, reason};
+          return {message, gameOver, winner, reason, sound};
         }
 
         if(chainOn){
@@ -864,18 +982,20 @@
           game.chainPieceId = null;
           game.turn = opp(moverColor);
         }
-        return {message, gameOver, winner, reason};
+        return {message, gameOver, winner, reason, sound};
       }
     }
 
     // Normal capture
     if(target.color === mover.color){
-      return {message:'非法：不能吃自己的棋'};
+      sound = 'error';
+      return {message:'非法：不能吃自己的棋', sound};
     }
     if(!target.revealed) target.revealed = true;
 
     b[to.r][to.c] = mover;
     b[from.r][from.c] = null;
+    sound = 'capture';
 
     message = `${moverColor==='r'?'紅':'黑'}：${moverName(mover)} ${coord(from)}→${coord(to)} 吃 ${GLYPH[target.color][target.type]}`;
 
@@ -883,7 +1003,7 @@
       gameOver = true;
       winner = moverColor;
       reason = '（小盤：吃掉對方將/帥）';
-      return {message, gameOver, winner, reason};
+      return {message, gameOver, winner, reason, sound};
     }
 
     if(chainOn){
@@ -894,11 +1014,11 @@
       game.chainPieceId = null;
       game.turn = opp(moverColor);
     }
-    return {message, gameOver, winner, reason};
+    return {message, gameOver, winner, reason, sound};
   }
 
   // -----------------------------
-  // AI
+  // AI (unchanged core)
   // -----------------------------
   function evaluateBoard(board, perspectiveColor){
     let score = 0;
@@ -909,7 +1029,6 @@
         const v = PIECE_VALUE[p.type] || 0;
         score += (p.color === perspectiveColor ? v : -v);
 
-        // Small bonus for advanced pawns
         if(p.type==='P'){
           if(p.color==='r') score += (perspectiveColor==='r' ? (4-r)*3 : -(4-r)*3);
           if(p.color==='b') score += (perspectiveColor==='b' ? r*3 : -r*3);
@@ -979,11 +1098,8 @@
       if(cmp === 'lose'){
         expected += prob * (-(PIECE_VALUE[attackerPiece.type]||0));
       }else{
-        if(t==='K'){
-          expected += prob * 999999;
-        }else{
-          expected += prob * (PIECE_VALUE[t]||0);
-        }
+        if(t==='K') expected += prob * 999999;
+        else expected += prob * (PIECE_VALUE[t]||0);
       }
     }
     return expected;
@@ -995,12 +1111,10 @@
 
     const level = CPU_LEVELS[game.cpuLevel] || CPU_LEVELS.normal;
 
-    // Big board: alpha-beta minimax
     if(game.config.boardMode === BOARD_MODE.BIG){
       const depth = level.depthBig;
       const moves = listAllLegalMoves(game, game.board, cpuColor, null);
 
-      // Prefer any move that gives check immediately
       let immediateCheckMoves = [];
       for(const mv of moves){
         const sim = simulateMove({...game, turn:cpuColor, board:game.board}, mv.from, mv.to);
@@ -1054,10 +1168,8 @@
       return best;
     }
 
-    // Small board AI: heuristic + risk evaluation
     const chainId = game.inChain ? game.chainPieceId : null;
     const moves = listAllLegalMoves(game, game.board, cpuColor, chainId);
-
     if(!moves.length) return null;
 
     const scored = moves.map(mv => {
@@ -1071,16 +1183,13 @@
         if(target.type==='K') s += 999999;
         else s += (PIECE_VALUE[target.type]||0);
       }else{
-        if(attacker && attacker.type==='P'){
-          s += 8;
-        }
+        if(attacker && attacker.type==='P') s += 8;
       }
 
       const enemyAttacks = getAttackedSquares(game, game.board, opp(cpuColor));
       if(enemyAttacks.has(`${mv.to.r},${mv.to.c}`)) s -= 40;
 
       if(game.settings.chainCapture && target) s += 30;
-
       s += (Math.random()*2-1) * (level.noise||0);
 
       return {mv, s};
@@ -1168,7 +1277,7 @@
 
       const mv = chooseMoveAI(game);
       if(!mv){
-        game.endGame(opp(game.turn), '（無合法步）');
+        game.endGame(opp(game.turn), '（無合法步）', {playWin:false});
         break;
       }
 
@@ -1182,13 +1291,13 @@
   function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
 
   // -----------------------------
-  // Dice (first move selection)
+  // Dice (first move selection) + Sounds
   // -----------------------------
   function weightedDiceForCpu(levelKey){
     const lvl = CPU_LEVELS[levelKey] || CPU_LEVELS.normal;
     const p6 = clamp(lvl.p6 ?? (1/6), 1/6, 0.5);
     const rest = (1 - p6) / 5;
-    const probs = [rest,rest,rest,rest,rest,p6]; // 1..6
+    const probs = [rest,rest,rest,rest,rest,p6];
     const x = Math.random();
     let acc = 0;
     for(let i=0;i<6;i++){
@@ -1197,7 +1306,6 @@
     }
     return 6;
   }
-
   function uniformDice(){ return 1 + Math.floor(Math.random()*6); }
 
   function openDiceModal(firstMethod, config, onDone){
@@ -1238,7 +1346,7 @@
     const btnStop = document.createElement('button');
     btnStop.textContent = '停';
     btnStop.className = 'primary';
-    btnStop.onclick = () => stopNow();
+    btnStop.onclick = () => stopNow(true);
 
     const btnCancel = document.createElement('button');
     btnCancel.textContent = '取消';
@@ -1280,6 +1388,9 @@
       const val = isCpu(phase) ? weightedDiceForCpu(config.cpuLevel) : uniformDice();
       if(phase==='r') rowR.valueEl.textContent = String(val);
       else rowB.valueEl.textContent = String(val);
+
+      // Dice rolling sound (throttled inside AudioManager)
+      AudioManager.play('diceTick');
     }
 
     function startRollingFor(color){
@@ -1290,18 +1401,21 @@
 
       if(firstMethod === 'diceAuto'){
         const delay = isCpu(color) ? 380 : 520;
-        window.setTimeout(() => stopNow(), delay + Math.floor(Math.random()*240));
+        window.setTimeout(() => stopNow(false), delay + Math.floor(Math.random()*240));
       }else{
         if(isCpu(color)){
-          window.setTimeout(() => stopNow(), 520 + Math.floor(Math.random()*320));
+          window.setTimeout(() => stopNow(false), 520 + Math.floor(Math.random()*320));
         }
       }
     }
 
-    function stopNow(){
+    function stopNow(isHumanPress){
       const shown = phase==='r' ? rowR.valueEl.textContent : rowB.valueEl.textContent;
       const val = parseInt(shown, 10);
       if(Number.isNaN(val)) return;
+
+      // Stop sound
+      AudioManager.play('diceStop');
 
       setVal(phase, val);
 
@@ -1393,12 +1507,8 @@
         cell.dataset.r = String(r);
         cell.dataset.c = String(c);
 
-        if((c+1) % game.cols === 0){
-          cell.style.borderRight = 'none';
-        }
-        if(r === game.rows-1){
-          cell.style.borderBottom = 'none';
-        }
+        if((c+1) % game.cols === 0) cell.style.borderRight = 'none';
+        if(r === game.rows-1) cell.style.borderBottom = 'none';
 
         const p = game.board[r][c];
         if(p){
@@ -1459,11 +1569,13 @@
       const show = stillInCheck && game.players[game.checkWindow.attacker] === 'human';
       btnCheckWin.classList.toggle('hidden', !show);
       btnCheckWin.classList.toggle('flash', show);
+      if(show) setSubStatus('⚠️ 對手被將軍！按「將軍！」立即獲勝。');
     }else{
       btnCheckWin.classList.add('hidden');
       btnCheckWin.classList.remove('flash');
     }
 
+    inSound.checked = !!game.settings.soundOn;
     inMoveHints.checked = !!game.settings.moveHints;
     inDangerHints.checked = !!game.settings.dangerHints;
     inDarkCapture.checked = !!game.settings.darkCapture;
@@ -1502,10 +1614,12 @@
     const pos = {r,c};
     const p = game.board[r][c];
 
+    // Chain: only the chain piece can be moved
     if(game.inChain){
       const chainPos = findPieceById(game.board, game.chainPieceId);
       if(chainPos){
         if(chainPos.r===r && chainPos.c===c){
+          // reselect same piece
           selectPiece(pos);
           return;
         }
@@ -1525,14 +1639,20 @@
     if(!game.selected){
       if(p && p.color === game.turn){
         selectPiece(pos);
+      }else{
+        // click empty or enemy without selection -> no move, treat as soft error
+        AudioManager.play('error');
       }
       return;
     }
 
+    // already selected
     if(p && p.color === game.turn){
       if(game.selected && game.selected.r===r && game.selected.c===c){
+        // cancel
         game.selected = null;
         game.legalMoves = [];
+        AudioManager.play('select'); // cancel sound (reuse)
         renderAll();
         return;
       }
@@ -1552,6 +1672,7 @@
 
     game.selected = pos;
     game.legalMoves = game.getLegalMovesForPiece(pos);
+    AudioManager.play('select');
     renderAll();
   }
 
@@ -1559,7 +1680,11 @@
     if(!game.selected) return;
     const from = game.selected;
     const ok = game.legalMoves.some(m => m.r===toPos.r && m.c===toPos.c);
-    if(!ok) return;
+    if(!ok){
+      AudioManager.play('error');
+      setSubStatus('不合法的目的地。');
+      return;
+    }
 
     game.tryMove(from, toPos);
   }
@@ -1592,7 +1717,7 @@
     if(!raw) return null;
     try{
       const save = JSON.parse(raw);
-      if(!save || save.version !== 1) return null;
+      if(!save || save.version !== 2) return null;
       return save;
     }catch(_e){
       return null;
@@ -1644,6 +1769,7 @@
 
     const moveHints = $('optMoveHints').checked;
     const dangerHints = $('optDangerHints').checked;
+    const soundOn = $('optSound').checked;
 
     return {
       mode,
@@ -1655,6 +1781,7 @@
       chainCapture: chain,
       moveHints,
       dangerHints,
+      soundOn,
     };
   }
 
@@ -1682,6 +1809,7 @@
       chainCapture: cfg0.boardMode===BOARD_MODE.SMALL ? cfg0.chainCapture : false,
       moveHints: cfg0.moveHints,
       dangerHints: cfg0.dangerHints,
+      soundOn: cfg0.soundOn,
       startTurn: cfg0.manualFirst,
     };
 
@@ -1713,6 +1841,7 @@
     cfg.chainCapture = game.settings.chainCapture;
     cfg.moveHints = game.settings.moveHints;
     cfg.dangerHints = game.settings.dangerHints;
+    cfg.soundOn = game.settings.soundOn;
 
     game = new Game();
     game.initNew(cfg);
@@ -1741,8 +1870,11 @@
     const defender = game.checkWindow.defender;
 
     if(isInCheck(game, game.board, defender)){
-      game.endGame(attacker, '（手動按下「將軍！」）');
+      // victory sound
+      AudioManager.play('win');
+      game.endGame(attacker, '（手動按下「將軍！」）', {playWin:false});
     }else{
+      AudioManager.play('error');
       setSubStatus('將軍機會已失效（對手已解除將軍）。');
       game.checkWindow = null;
       renderAll();
@@ -1753,6 +1885,16 @@
   // In-game toggles
   // -----------------------------
   function wireInGameToggles(){
+    inSound.addEventListener('change', () => {
+      game.settings.soundOn = inSound.checked;
+      AudioManager.setEnabled(game.settings.soundOn);
+      // feedback
+      if(game.settings.soundOn){
+        AudioManager.play('select');
+      }
+      renderAll();
+    });
+
     inMoveHints.addEventListener('change', () => {
       game.settings.moveHints = inMoveHints.checked;
       renderAll();
@@ -1833,6 +1975,13 @@
         actions: [{text:'OK', primary:true, onClick: closeModal}]
       });
     });
+
+    // menu sound toggle live
+    optSound?.addEventListener('change', () => {
+      // only affect AudioManager preview; actual game uses config
+      AudioManager.setEnabled(optSound.checked);
+      if(optSound.checked) AudioManager.play('select');
+    });
   }
 
   function wireGameButtons(){
@@ -1844,10 +1993,23 @@
     btnCheckWin.addEventListener('click', onCheckWinClick);
   }
 
+  // Autoplay unlock: first user gesture enables audio.
+  function wireAutoplayUnlock(){
+    const unlockOnce = () => {
+      AudioManager.unlock();
+      // If menu sound enabled, give a tiny feedback without spamming
+      if(optSound && optSound.checked) AudioManager.play('select');
+      window.removeEventListener('pointerdown', unlockOnce);
+      window.removeEventListener('keydown', unlockOnce);
+      window.removeEventListener('touchstart', unlockOnce);
+    };
+    window.addEventListener('pointerdown', unlockOnce, {passive:true});
+    window.addEventListener('touchstart', unlockOnce, {passive:true});
+    window.addEventListener('keydown', unlockOnce);
+  }
+
   window.addEventListener('beforeunload', () => {
-    try{
-      autoSaveIfPlaying();
-    }catch(_e){}
+    try{ autoSaveIfPlaying(); }catch(_e){}
   });
 
   // -----------------------------
@@ -1857,12 +2019,20 @@
     wireMenu();
     wireGameButtons();
     wireInGameToggles();
+    wireAutoplayUnlock();
+
     updateMenuVisibility();
 
+    // Default toggles
+    inSound.checked = true;
     inMoveHints.checked = true;
     inDangerHints.checked = false;
     inDarkCapture.checked = true;
     inChainCapture.checked = true;
+
+    if(optSound) optSound.checked = true;
+
+    AudioManager.setEnabled(true);
 
     showScreen('menu');
     maybePromptResume();
@@ -1870,4 +2040,4 @@
 
   boot();
 
-})(); 
+})();
