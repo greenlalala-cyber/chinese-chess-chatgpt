@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>冠冠中國象棋 2</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- Load / Resume modal -->
+    <div id="modalOverlay" class="modalOverlay hidden" aria-hidden="true">
+      <div id="modal" class="modal" role="dialog" aria-modal="true">
+        <div class="modalHeader">
+          <div id="modalTitle" class="modalTitle">提示</div>
+        </div>
+        <div id="modalBody" class="modalBody"></div>
+        <div id="modalActions" class="modalActions"></div>
+      </div>
+    </div>
+
+    <!-- Menu Screen -->
+    <section id="menuScreen" class="screen">
+      <header class="header">
+        <h1>冠冠中國象棋</h1>
+        <p class="sub">離線單機版（HTML/CSS/JS）</p>
+      </header>
+
+      <div class="panel">
+        <h2>1) 遊戲模式</h2>
+        <div class="row">
+          <label><input type="radio" name="mode" value="pvcpu" checked> 玩家 vs CPU</label>
+          <label><input type="radio" name="mode" value="pvp"> 玩家 vs 玩家（雙人本機輪流）</label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>2) 棋盤模式</h2>
+        <div class="row">
+          <label><input type="radio" name="boardMode" value="big" checked> 大盤（全盤 9×10）</label>
+          <label><input type="radio" name="boardMode" value="small"> 小盤（半盤 9×5，全蓋，含暗吃/連吃）</label>
+        </div>
+      </div>
+
+      <div id="cpuPanel" class="panel">
+        <h2>3) CPU 等級</h2>
+        <div class="row">
+          <select id="cpuLevel">
+            <option value="normal">一般</option>
+            <option value="medium">稍強</option>
+            <option value="strong">強勁</option>
+            <option value="ultra">超強</option>
+          </select>
+          <span class="hintText">難度越高越強，且骰子更容易出 6（CPU 方）。</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>4) 先手/後手決定方式</h2>
+        <div class="col">
+          <label><input type="radio" name="firstMethod" value="manual" checked> 玩家自選先/後手</label>
+          <label><input type="radio" name="firstMethod" value="diceAuto"> 隨機決定（骰子）</label>
+          <label><input type="radio" name="firstMethod" value="diceStop"> 隨機決定（骰子）— 玩家可選擇何時停骰</label>
+        </div>
+
+        <div id="manualFirstRow" class="row">
+          <span>先手方：</span>
+          <label><input type="radio" name="manualFirst" value="r" checked> 紅方</label>
+          <label><input type="radio" name="manualFirst" value="b"> 黑方</label>
+        </div>
+      </div>
+
+      <div id="smallRulesPanel" class="panel hidden">
+        <h2>5) 小盤額外規則（可複選，遊戲中也可切換）</h2>
+        <div class="row">
+          <label><input type="checkbox" id="optDark" checked> 暗吃</label>
+          <label><input type="checkbox" id="optChain" checked> 連吃</label>
+        </div>
+        <p class="hintText">
+          小盤不論是否勾選，開局全部棋子都會蓋著。暗吃與連吃只影響吃子/續走規則。
+        </p>
+      </div>
+
+      <div class="panel">
+        <h2>6) 提示（可遊戲中切換）</h2>
+        <div class="row">
+          <label><input type="checkbox" id="optMoveHints" checked> 棋步提示（顯示可走位置，預設開）</label>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="optDangerHints"> 危險區域提示（顯示對手可攻擊格，預設關）</label>
+        </div>
+      </div>
+
+      <div class="panel actions">
+        <button id="btnStart" class="primary">開始遊戲</button>
+        <button id="btnClearSave" class="ghost">清除本機存檔</button>
+      </div>
+
+      <footer class="footer">
+        <p class="small">
+          備註：本遊戲會使用瀏覽器 localStorage 儲存進度（僅本機）。若你清除瀏覽器資料，存檔將消失。
+        </p>
+      </footer>
+    </section>
+
+    <!-- Game Screen -->
+    <section id="gameScreen" class="screen hidden">
+      <header class="gameTop">
+        <div class="left">
+          <div id="statusLine" class="statusLine">狀態</div>
+          <div id="subStatusLine" class="subStatusLine"></div>
+        </div>
+
+        <div class="right">
+          <button id="btnCheckWin" class="checkWin hidden">將軍！</button>
+          <button id="btnRestart" class="ghost">重新開始</button>
+          <button id="btnToMenu" class="ghost">回主選單</button>
+        </div>
+      </header>
+
+      <main class="gameMain">
+        <div class="boardWrap">
+          <div id="board" class="board" aria-label="棋盤"></div>
+        </div>
+
+        <aside class="sidePanel">
+          <div class="panel">
+            <h3>遊戲內設定</h3>
+
+            <div class="row">
+              <label class="toggle"><input type="checkbox" id="inMoveHints"> 棋步提示</label>
+            </div>
+
+            <div class="row">
+              <label class="toggle"><input type="checkbox" id="inDangerHints"> 危險區域提示</label>
+            </div>
+
+            <div class="row">
+              <label class="toggle"><input type="checkbox" id="inDarkCapture"> 暗吃（小盤）</label>
+            </div>
+
+            <div class="row">
+              <label class="toggle"><input type="checkbox" id="inChainCapture"> 連吃（小盤）</label>
+            </div>
+
+            <hr />
+
+            <div class="small">
+              <div><b>小盤連吃停止規則：</b></div>
+              <div>連吃中不可手動結束回合，只有走到空格才會停止並換手。</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>棋步紀錄</h3>
+            <div id="history" class="history"></div>
+          </div>
+        </aside>
+      </main>
+    </section>
+
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
