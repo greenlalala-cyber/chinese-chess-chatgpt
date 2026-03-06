@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>冠冠中國象棋</title>
+  <title>中國象棋 / 台灣暗棋</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="app">
 
-    <!-- Load / Resume modal -->
+    <!-- Modal -->
     <div id="modalOverlay" class="modalOverlay hidden" aria-hidden="true">
       <div id="modal" class="modal" role="dialog" aria-modal="true">
         <div class="modalHeader">
@@ -20,10 +20,10 @@
       </div>
     </div>
 
-    <!-- Menu Screen -->
+    <!-- Menu -->
     <section id="menuScreen" class="screen">
       <header class="header">
-        <h1>冠冠中國象棋</h1>
+        <h1>中國象棋 / 台灣暗棋</h1>
         <p class="sub">離線單機版（HTML/CSS/JS）</p>
       </header>
 
@@ -38,8 +38,8 @@
       <div class="panel">
         <h2>2) 棋盤模式</h2>
         <div class="row">
-          <label><input type="radio" name="boardMode" value="big" checked> 大盤（全盤 9×10）</label>
-          <label><input type="radio" name="boardMode" value="small"> 小盤（半盤 9×5，全蓋，含暗吃/連吃）</label>
+          <label><input type="radio" name="boardMode" value="big" checked> 大盤（中國象棋 9×10）</label>
+          <label><input type="radio" name="boardMode" value="dark"> 小盤（台灣暗棋 4×8，32 子）</label>
         </div>
       </div>
 
@@ -52,14 +52,14 @@
             <option value="strong">強勁</option>
             <option value="ultra">超強</option>
           </select>
-          <span class="hintText">難度越高越強，且骰子更容易出 6（CPU 方）。</span>
+          <span class="hintText">難度越高越強，骰子更容易出 6（CPU 方）。</span>
         </div>
       </div>
 
       <div class="panel">
-        <h2>4) 先手/後手決定方式（新增骰子規則）</h2>
+        <h2>4) 先手/後手決定方式</h2>
         <div class="col">
-          <label><input type="radio" name="firstMethod" value="manual" checked> 玩家自選先/後手</label>
+          <label><input type="radio" name="firstMethod" value="manual" checked> 玩家自選先/後手（紅/黑）</label>
           <label><input type="radio" name="firstMethod" value="diceAuto"> 隨機決定（骰子）</label>
           <label><input type="radio" name="firstMethod" value="diceStop"> 隨機決定（骰子）— 玩家可選擇何時停骰</label>
         </div>
@@ -69,30 +69,21 @@
           <label><input type="radio" name="manualFirst" value="r" checked> 紅方</label>
           <label><input type="radio" name="manualFirst" value="b"> 黑方</label>
         </div>
-      </div>
 
-      <div id="smallRulesPanel" class="panel hidden">
-        <h2>5) 小盤額外規則（可複選，遊戲中也可切換）</h2>
-        <div class="row">
-          <label><input type="checkbox" id="optDark" checked> 暗吃</label>
-          <label><input type="checkbox" id="optChain" checked> 連吃</label>
-        </div>
         <p class="hintText">
-          小盤不論是否勾選，開局全部棋子都會蓋著。暗吃與連吃只影響吃子/續走規則。
+          台灣暗棋：先手仍會由此決定「誰先行動」，但「玩家顏色」由第一顆翻出的棋決定（翻到紅=先手方操紅；翻到黑=先手方操黑）。
         </p>
       </div>
 
       <div class="panel">
-        <h2>6) 提示（可遊戲中切換）</h2>
+        <h2>5) 提示與音效</h2>
         <div class="row">
-          <label><input type="checkbox" id="optMoveHints" checked> 棋步提示（顯示可走位置，預設開）</label>
-        </div>
-        <div class="row">
-          <label><input type="checkbox" id="optDangerHints"> 危險區域提示（顯示對手可攻擊格，預設關）</label>
+          <label><input type="checkbox" id="optMoveHints" checked> 棋步提示（預設開）</label>
+          <label><input type="checkbox" id="optDangerHints"> 危險區域提示（預設關）</label>
         </div>
         <div class="row">
           <label><input type="checkbox" id="optSound" checked> 音效（預設開）</label>
-          <span class="hintText">注意：瀏覽器需先有一次點擊/觸控後才允許播放。</span>
+          <span class="hintText">瀏覽器需先有一次點擊/觸控後才能播放。</span>
         </div>
       </div>
 
@@ -102,13 +93,11 @@
       </div>
 
       <footer class="footer">
-        <p class="small">
-          備註：本遊戲會使用瀏覽器 localStorage 儲存進度（僅本機）。若你清除瀏覽器資料，存檔將消失。
-        </p>
+        <p class="small">備註：本遊戲會使用 localStorage 存進度（僅本機）。</p>
       </footer>
     </section>
 
-    <!-- Game Screen -->
+    <!-- Game -->
     <section id="gameScreen" class="screen hidden">
       <header class="gameTop">
         <div class="left">
@@ -118,6 +107,7 @@
 
         <div class="right">
           <button id="btnCheckWin" class="checkWin hidden">將軍！</button>
+          <button id="btnUndo" class="ghost">悔棋</button>
           <button id="btnRestart" class="ghost">重新開始</button>
           <button id="btnToMenu" class="ghost">回主選單</button>
         </div>
@@ -125,7 +115,7 @@
 
       <main class="gameMain">
         <div class="boardWrap">
-          <div id="board" class="board" aria-label="棋盤"></div>
+          <div id="board" class="board vintage" aria-label="棋盤"></div>
         </div>
 
         <aside class="sidePanel">
@@ -135,28 +125,20 @@
             <div class="row">
               <label class="toggle"><input type="checkbox" id="inSound"> 音效</label>
             </div>
-
             <div class="row">
               <label class="toggle"><input type="checkbox" id="inMoveHints"> 棋步提示</label>
             </div>
-
             <div class="row">
               <label class="toggle"><input type="checkbox" id="inDangerHints"> 危險區域提示</label>
             </div>
 
-            <div class="row">
-              <label class="toggle"><input type="checkbox" id="inDarkCapture"> 暗吃（小盤）</label>
-            </div>
-
-            <div class="row">
-              <label class="toggle"><input type="checkbox" id="inChainCapture"> 連吃（小盤）</label>
-            </div>
-
             <hr />
-
-            <div class="small">
-              <div><b>小盤連吃停止規則：</b></div>
-              <div>連吃中不可手動結束回合，只有走到空格才會停止並換手。</div>
+            <div class="small" id="darkHelp">
+              <b>台灣暗棋提示：</b><br/>
+              每回合二選一：<br/>
+              1) 翻任一蓋牌（翻出顏色決定先手方操哪一色）<br/>
+              2) 移動/吃子（只能用己方已翻開棋）<br/>
+              炮吃子需隔一子「翻山」；兵可吃將、將不可吃兵、兵不可吃炮。
             </div>
           </div>
 
