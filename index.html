@@ -43,8 +43,19 @@
         </div>
       </div>
 
+      <div id="darkOptionsPanel" class="panel hidden">
+        <h2>3) 暗棋選項（可遊戲中切換）</h2>
+        <div class="row">
+          <label><input type="checkbox" id="optFogCapture" checked> 暗吃（可吃蓋牌）</label>
+          <label><input type="checkbox" id="optChainCapture" checked> 連吃（可連續吃子）</label>
+        </div>
+        <p class="hintText">
+          依戲谷規則：標準暗棋只能吃明棋；暗棋連吃允許吃相鄰暗棋；連吃可隨時中止；炮/包連吃仍需隔子飛越。 :contentReference[oaicite:4]{index=4}
+        </p>
+      </div>
+
       <div id="cpuPanel" class="panel">
-        <h2>3) CPU 等級</h2>
+        <h2>4) CPU 等級</h2>
         <div class="row">
           <select id="cpuLevel">
             <option value="normal">一般</option>
@@ -57,7 +68,7 @@
       </div>
 
       <div class="panel">
-        <h2>4) 先手/後手決定方式</h2>
+        <h2>5) 先手/後手決定方式</h2>
         <div class="col">
           <label><input type="radio" name="firstMethod" value="manual" checked> 玩家自選先/後手（紅/黑）</label>
           <label><input type="radio" name="firstMethod" value="diceAuto"> 隨機決定（骰子）</label>
@@ -71,12 +82,12 @@
         </div>
 
         <p class="hintText">
-          台灣暗棋：先手仍會由此決定「誰先行動」，但「玩家顏色」由第一顆翻出的棋決定（翻到紅=先手方操紅；翻到黑=先手方操黑）。
+          暗棋：先手只決定「誰先行動」，顏色由第一顆翻出的棋決定。 :contentReference[oaicite:5]{index=5}
         </p>
       </div>
 
       <div class="panel">
-        <h2>5) 提示與音效</h2>
+        <h2>6) 提示與音效</h2>
         <div class="row">
           <label><input type="checkbox" id="optMoveHints" checked> 棋步提示（預設開）</label>
           <label><input type="checkbox" id="optDangerHints"> 危險區域提示（預設關）</label>
@@ -107,6 +118,7 @@
 
         <div class="right">
           <button id="btnCheckWin" class="checkWin hidden">將軍！</button>
+          <button id="btnStopChain" class="primary hidden">結束連吃</button>
           <button id="btnUndo" class="ghost">悔棋</button>
           <button id="btnRestart" class="ghost">重新開始</button>
           <button id="btnToMenu" class="ghost">回主選單</button>
@@ -132,13 +144,18 @@
               <label class="toggle"><input type="checkbox" id="inDangerHints"> 危險區域提示</label>
             </div>
 
-            <hr />
-            <div class="small" id="darkHelp">
-              <b>台灣暗棋提示：</b><br/>
-              每回合二選一：<br/>
-              1) 翻任一蓋牌（翻出顏色決定先手方操哪一色）<br/>
-              2) 移動/吃子（只能用己方已翻開棋）<br/>
-              炮吃子需隔一子「翻山」；兵可吃將、將不可吃兵、兵不可吃炮。
+            <hr/>
+
+            <div id="darkToggles" class="hidden">
+              <div class="row">
+                <label class="toggle"><input type="checkbox" id="inFogCapture"> 暗吃（可吃蓋牌）</label>
+              </div>
+              <div class="row">
+                <label class="toggle"><input type="checkbox" id="inChainCapture"> 連吃（可連續吃子）</label>
+              </div>
+              <div class="small" style="margin-top:8px;">
+                <b>連吃提示：</b>吃到相鄰棋且仍能繼續吃時，可繼續吃；也可隨時按「結束連吃」。 :contentReference[oaicite:6]{index=6}
+              </div>
             </div>
           </div>
 
