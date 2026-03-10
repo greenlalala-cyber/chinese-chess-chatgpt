@@ -229,12 +229,13 @@
   const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
   const opp = (c)=> c==='r'?'b':'r';
+  const inside = (r,c,rows,cols)=> r>=0 && r<rows && c>=0 && c<cols;
 
-  const STORAGE_KEY = 'xiangqi_dark_rework_v3';
+  // Updated storage key to avoid old saves breaking
+  const STORAGE_KEY = 'xiangqi_dark_funtown_v4';
 
   const MODE = { PVC:'pvcpu', PVP:'pvp' };
   const BOARD = { BIG:'big', DARK:'dark' };
-  const COLOR = { R:'r', B:'b' };
 
   const CPU_LEVELS = {
     normal: { name:'一般', noise: 40, p6: 1/6 },
@@ -250,35 +251,24 @@
   };
 
   // =========================================================
-  // Taiwan Dark Chess rules (as implemented)
+  // Dark chess (Funtown) rule constants / mapping
   // =========================================================
-  // Based on zh.wikipedia.org/zh-tw/暗棋 "台灣暗棋" section:
-  // - Board: 4x8, 32 pieces, all face-down random on squares.
-  // - Each turn choose ONE action:
-  //   1) Flip one face-down piece.
-  //   2) Move ONE of your face-up pieces to adjacent orthogonal empty square OR capture.
-  // - Color assignment: first player’s first flip decides that player’s color.
-  // - Move: one step orthogonally (炮也可走一步到空格).
-  // - Capture rank rules:
-  //   * 將/帥: can capture any EXCEPT 兵/卒
-  //   * 士/仕: can capture any EXCEPT 將/帥
-  //   * 象/相: can capture any EXCEPT 士/仕、將/帥
-  //   * 車: can capture any EXCEPT 象/相、士/仕、將/帥
-  //   * 馬: can capture 兵/卒、砲/炮
-  //   * 兵/卒: can capture 將/帥 (special) AND is lowest; cannot capture 砲/炮
-  //   * 砲/炮: cannot capture adjacent; can "翻山" jump exactly ONE piece as screen
-  //            and capture an enemy face-up piece at the first piece beyond the screen.
-  // - Win: capture all opponent pieces (16).
-  // - Draw: simplified 50 plies without flip/capture (implemented).
+  // Rules implemented from Funtown rules2:
+  // 1) Standard dark chess: flip, move 1 step, capture adjacent, only capture revealed (明棋). :contentReference[oaicite:7]{index=7}
+  // 2) Dark-capture option (暗吃): allow capturing adjacent face-down (暗棋) as in「暗棋連吃」。 :contentReference[oaicite:8]{index=8}
+  // 3) Chain-capture option (連吃): after a capture, may continue capturing adjacent connected pieces if legal; can stop anytime. :contentReference[oaicite:9]{index=9}
+  // 4) Cannon/包 capture needs exactly one screen piece in between and "jump" capture; in chain it still needs a screen. :contentReference[oaicite:10]{index=10}
+  // 5) Capture table per rules2 lines 18-46. :contentReference[oaicite:11]{index=11}
   //
-  // NOTE: We enforce "cannot capture face-down pieces"; must flip them first.
+  // NOTE (implementation decision): rules2 doesn't specify what happens if you try 暗吃 a face-down piece
+  // and it turns out you cannot capture it. We implement:
+  // - The target is revealed (since you "exposed" it by attempting),
+  // - the capture fails (no movement),
+  // - turn ends to opponent.
+  // This keeps the game deterministic and matches common online dark-chess behavior.
 
-  const DARK = {
-    rows: 4,
-    cols: 8,
-    types: ['K','A','B','R','N','C','P'],
-    counts: { K:1, A:2, B:2, R:2, N:2, C:2, P:5 }, // per color
-  };
+  const DARK = { rows: 4, cols: 8 };
+  const DARK_COUNTS = { K:1, A:2, B:2, R:2, N:2, C:2, P:5 }; // per color
 
   // =========================================================
   // App elements
@@ -288,6 +278,7 @@
 
   const cpuPanel = $('cpuPanel');
   const manualFirstRow = $('manualFirstRow');
+  const darkOptionsPanel = $('darkOptionsPanel');
 
   const btnStart = $('btnStart');
   const btnClearSave = $('btnClearSave');
@@ -301,11 +292,18 @@
   const btnToMenu = $('btnToMenu');
   const btnUndo = $('btnUndo');
   const btnCheckWin = $('btnCheckWin');
+  const btnStopChain = $('btnStopChain');
+
+  const optSound = $('optSound');
+  const optFogCapture = $('optFogCapture');
+  const optChainCapture = $('optChainCapture');
 
   const inSound = $('inSound');
   const inMoveHints = $('inMoveHints');
   const inDangerHints = $('inDangerHints');
-  const optSound = $('optSound');
+  const inFogCapture = $('inFogCapture');
+  const inChainCapture = $('inChainCapture');
+  const darkToggles = $('darkToggles');
 
   // Modal
   const modalOverlay = $('modalOverlay');
@@ -327,10 +325,8 @@
       this.board = [];
       this.turn = 'r';
 
-      // dark chess color assignment:
-      // before assignment: playerColor = null
-      // once assigned: {p1:'r'|'b', p2:'r'|'b'} where p1=first mover side, p2=other
-      this.darkSide = { p1: null, p2: null }; // which color each side controls
+      // For dark chess: p1 is seat 'r', p2 is seat 'b', color assigned by first flip
+      this.darkSide = { p1:null, p2:null };
       this.darkCaptured = { r:0, b:0 };
       this.noProgressPlies = 0;
 
@@ -341,25 +337,30 @@
         soundOn: true,
         moveHints: true,
         dangerHints: false,
+        fogCapture: true,   // 暗吃
+        chainCapture: true, // 連吃
       };
 
       this.selected = null;
       this.legalMoves = [];
-      this.dangerSquares = new Set();
 
-      this.checkWindow = null; // big board only
-      this.lastCheckState = { r:false, b:false };
+      this.chainActive = false;
+      this.chainPieceId = null;
 
       this.history = [];
       this.idCounter = 1;
       this.gameOver = false;
 
-      this.undoStack = []; // snapshot stack
-
-      // animation / lock
+      this.undoStack = []; // snapshots
       this.locked = false;
+
       this.lastCpuFrom = null;
       this.lastCpuTo = null;
+
+      // big board only
+      this.checkWindow = null;
+      this.lastCheckState = { r:false, b:false };
+      this.dangerSquares = new Set();
     }
 
     nextId(){ return this.idCounter++; }
@@ -370,8 +371,7 @@
     }
 
     snapshot(){
-      // Deep copy minimal state needed to restore
-      const snap = {
+      return {
         config: this.config,
         boardMode: this.boardMode,
         mode: this.mode,
@@ -387,43 +387,46 @@
         darkSide: {...this.darkSide},
         darkCaptured: {...this.darkCaptured},
         noProgressPlies: this.noProgressPlies,
-        checkWindow: this.checkWindow ? {...this.checkWindow} : null,
-        lastCheckState: {...this.lastCheckState},
         history: [...this.history],
         idCounter: this.idCounter,
         gameOver: this.gameOver,
+        chainActive: this.chainActive,
+        chainPieceId: this.chainPieceId,
         lastCpuFrom: this.lastCpuFrom ? {...this.lastCpuFrom} : null,
         lastCpuTo: this.lastCpuTo ? {...this.lastCpuTo} : null,
+        checkWindow: this.checkWindow ? {...this.checkWindow} : null,
+        lastCheckState: {...this.lastCheckState},
       };
-      return snap;
     }
 
-    restore(snap){
-      this.config = snap.config;
-      this.boardMode = snap.boardMode;
-      this.mode = snap.mode;
-      this.rows = snap.rows;
-      this.cols = snap.cols;
-      this.board = snap.board.map(row => row.map(p => p ? ({...p}) : null));
-      this.turn = snap.turn;
-      this.players = {...snap.players};
-      this.cpuLevel = snap.cpuLevel;
-      this.settings = {...snap.settings};
-      this.selected = snap.selected ? {...snap.selected} : null;
-      this.legalMoves = snap.legalMoves.map(m=>({...m}));
-      this.darkSide = {...snap.darkSide};
-      this.darkCaptured = {...snap.darkCaptured};
-      this.noProgressPlies = snap.noProgressPlies;
-      this.checkWindow = snap.checkWindow ? {...snap.checkWindow} : null;
-      this.lastCheckState = {...snap.lastCheckState};
-      this.history = [...snap.history];
-      this.idCounter = snap.idCounter;
-      this.gameOver = snap.gameOver;
-      this.lastCpuFrom = snap.lastCpuFrom ? {...snap.lastCpuFrom} : null;
-      this.lastCpuTo = snap.lastCpuTo ? {...snap.lastCpuTo} : null;
+    restore(s){
+      this.config = s.config;
+      this.boardMode = s.boardMode;
+      this.mode = s.mode;
+      this.rows = s.rows;
+      this.cols = s.cols;
+      this.board = s.board.map(row => row.map(p => p ? ({...p}) : null));
+      this.turn = s.turn;
+      this.players = {...s.players};
+      this.cpuLevel = s.cpuLevel;
+      this.settings = {...s.settings};
+      this.selected = s.selected ? {...s.selected} : null;
+      this.legalMoves = s.legalMoves.map(m=>({...m}));
+      this.darkSide = {...s.darkSide};
+      this.darkCaptured = {...s.darkCaptured};
+      this.noProgressPlies = s.noProgressPlies;
+      this.history = [...s.history];
+      this.idCounter = s.idCounter;
+      this.gameOver = s.gameOver;
+      this.chainActive = !!s.chainActive;
+      this.chainPieceId = s.chainPieceId ?? null;
+      this.lastCpuFrom = s.lastCpuFrom ? {...s.lastCpuFrom} : null;
+      this.lastCpuTo = s.lastCpuTo ? {...s.lastCpuTo} : null;
+      this.checkWindow = s.checkWindow ? {...s.checkWindow} : null;
+      this.lastCheckState = {...s.lastCheckState};
 
-      this.dangerSquares = new Set();
       this.locked = false;
+      this.dangerSquares = new Set();
     }
 
     saveUndoPoint(){
@@ -431,14 +434,10 @@
       if(this.undoStack.length > 200) this.undoStack.shift();
     }
 
-    canUndo(){
-      return this.undoStack.length > 0 && !this.locked;
-    }
+    canUndo(){ return this.undoStack.length > 0 && !this.locked; }
 
     undo(){
       if(!this.canUndo()) return false;
-
-      // PvC: default undo back to player's turn (2 plies)
       const isPVC = this.mode === MODE.PVC;
       if(!isPVC){
         const s = this.undoStack.pop();
@@ -446,8 +445,7 @@
         this.restore(s);
         return true;
       }
-
-      // pop at least 1, and keep popping until it's human's turn again OR stack empty
+      // PvC: pop until human turn
       while(this.undoStack.length){
         const s = this.undoStack.pop();
         this.restore(s);
@@ -466,20 +464,18 @@
         soundOn: cfg.soundOn ?? true,
         moveHints: cfg.moveHints ?? true,
         dangerHints: cfg.dangerHints ?? false,
+        fogCapture: cfg.fogCapture ?? true,
+        chainCapture: cfg.chainCapture ?? true,
       };
       AudioManager.setEnabled(this.settings.soundOn);
 
-      // players mapping: for big board fixed colors, for dark chess colors are assigned by first flip
-      if(cfg.mode === MODE.PVC){
-        this.players = { r:'human', b:'cpu' };
-      }else{
-        this.players = { r:'human', b:'human' };
-      }
+      this.players = (cfg.mode === MODE.PVC) ? { r:'human', b:'cpu' } : { r:'human', b:'human' };
 
       this.turn = cfg.startTurn || 'r';
       this.selected = null;
       this.legalMoves = [];
-      this.dangerSquares = new Set();
+      this.chainActive = false;
+      this.chainPieceId = null;
 
       this.history = [];
       this.idCounter = 1;
@@ -490,23 +486,22 @@
       this.lastCpuFrom = null;
       this.lastCpuTo = null;
 
+      this.checkWindow = null;
+      this.lastCheckState = { r:false, b:false };
+
       if(this.boardMode === BOARD.BIG){
         const {board, rows, cols} = createBigBoard(this);
         this.board = board; this.rows = rows; this.cols = cols;
-        this.checkWindow = null;
-        this.lastCheckState = { r:false, b:false };
         this.pushHistory(`新局（大盤）開始，先手：${this.turn==='r'?'紅':'黑'}`);
       }else{
         const {board, rows, cols} = createDarkBoard(this);
         this.board = board; this.rows = rows; this.cols = cols;
         this.darkSide = { p1:null, p2:null };
         this.darkCaptured = { r:0, b:0 };
-        this.checkWindow = null;
-        this.lastCheckState = { r:false, b:false };
-        this.pushHistory(`新局（台灣暗棋 4×8）開始，先手行動方：${this.turn==='r'?'紅/玩家1':'黑/玩家2'}`);
+        this.pushHistory(`新局（暗棋 4×8）開始，先手行動方：${this.turn==='r'?'玩家1':'玩家2'}`);
       }
 
-      // save initial undo point (so undo can revert first move too)
+      // allow undo from start
       this.saveUndoPoint();
     }
   }
@@ -551,7 +546,7 @@
 
     const bag = [];
     for(const color of ['r','b']){
-      for(const [t, cnt] of Object.entries(DARK.counts)){
+      for(const [t,cnt] of Object.entries(DARK_COUNTS)){
         for(let i=0;i<cnt;i++){
           bag.push(mkPiece(game, t, color, false)); // all face-down
         }
@@ -570,18 +565,16 @@
 
   function shuffle(arr){
     for(let i=arr.length-1;i>0;i--){
-      const j = Math.floor(Math.random()*(i+1));
+      const j=Math.floor(Math.random()*(i+1));
       [arr[i],arr[j]]=[arr[j],arr[i]];
     }
     return arr;
   }
 
   // =========================================================
-  // BIG board rules (kept minimal from previous: legal moves + check-window win)
+  // BIG board rules (simplified legal move + check-button win)
   // =========================================================
   const DIRS4 = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
-
-  function inside(r,c,rows,cols){ return r>=0 && r<rows && c>=0 && c<cols; }
 
   function palaceContainsBig(color,r,c){
     if(c<3||c>5) return false;
@@ -706,14 +699,11 @@
     const rows=board.length, cols=board[0].length;
     const set=new Set();
     const add=(r,c)=>{ if(inside(r,c,rows,cols)) set.add(`${r},${c}`); };
-
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols;c++){
         const p=board[r][c];
         if(!p||p.color!==attacker) continue;
-        const pos={r,c};
-        const pseudo = pseudoMovesBig({...game, board, rows, cols}, pos, p);
-        // For cannon attack squares, pseudoMovesBig includes moves and capture squares; good enough as danger indicator
+        const pseudo = pseudoMovesBig({...game, board, rows, cols}, {r,c}, p);
         for(const m of pseudo) add(m.r,m.c);
       }
     }
@@ -755,11 +745,51 @@
   }
 
   // =========================================================
-  // DARK chess rules: legal moves
+  // DARK chess rules: capture table (Funtown rules2)
+  // =========================================================
+  // Table is expressed as: attackerType -> set of targetTypes allowed (enemy)
+  // Note: P (兵/卒) differs for red/black:
+  // - 卒 can eat 兵、帥
+  // - 兵 can eat 卒、將
+  // We'll handle pawn by color.
+  const CAPTURE_MAP = {
+    // King
+    'K': new Set(['K','A','B','R','N','C']), // 帥 eats 將、士、象、車、馬、包 ; 將 eats 帥、仕、相、俥、傌、炮 :contentReference[oaicite:12]{index=12}
+    // Advisor
+    'A': new Set(['A','B','R','N','C','P']), // 仕 eats 士、象、車、馬、包、兵 ; 士 eats 仕、相、俥、傌、炮、卒 :contentReference[oaicite:13]{index=13}
+    // Elephant
+    'B': new Set(['B','R','N','C','P']),     // 相 eats 象、車、馬、包、兵 ; 象 eats 相、俥、傌、炮、卒 :contentReference[oaicite:14]{index=14}
+    // Rook
+    'R': new Set(['R','N','C','P']),         // 俥/車 eats 車/俥、馬/傌、炮/包、卒/兵 :contentReference[oaicite:15]{index=15}
+    // Knight
+    'N': new Set(['N','C','P']),             // 傌 eats 馬、包、兵 ; 馬 eats 傌、炮、卒 :contentReference[oaicite:16]{index=16}
+    // Cannon handled separately (can eat all, with screen) :contentReference[oaicite:17]{index=17}
+    'C': new Set(['K','A','B','R','N','C','P']),
+  };
+
+  function pawnCanCapture(attacker, target){
+    // attacker.type must be P
+    // red pawn (兵) can capture black pawn (卒) and black king (將) :contentReference[oaicite:18]{index=18}
+    // black pawn (卒) can capture red pawn (兵) and red king (帥) :contentReference[oaicite:19]{index=19}
+    if(attacker.color==='r'){
+      return (target.type==='P' && target.color==='b') || (target.type==='K' && target.color==='b');
+    }
+    return (target.type==='P' && target.color==='r') || (target.type==='K' && target.color==='r');
+  }
+
+  function canCaptureFuntown(attacker, target){
+    if(attacker.type==='P') return pawnCanCapture(attacker, target);
+    if(attacker.type==='C') return true; // validated by screen logic
+    const set = CAPTURE_MAP[attacker.type];
+    if(!set) return false;
+    // for non-pawn, treat target by type only (king vs king etc)
+    return set.has(target.type);
+  }
+
+  // =========================================================
+  // Dark chess control: whose color can move this turn?
   // =========================================================
   function darkPlayerColorForTurn(game){
-    // In dark chess, "turn" is still 'r'/'b' seat, but seat color might control piece color determined by first flip.
-    // p1 = seat 'r', p2 = seat 'b'
     const seat = game.turn === 'r' ? 'p1' : 'p2';
     return game.darkSide[seat]; // null before first assignment
   }
@@ -770,72 +800,50 @@
     return null;
   }
 
-  function canCaptureTaiwan(attackerType, targetType){
-    // Taiwan dark chess exceptions
-    if(attackerType === 'C'){
-      // cannon capture handled separately (jump)
-      return false;
-    }
-    if(attackerType === 'K'){
-      return targetType !== 'P';
-    }
-    if(attackerType === 'A'){
-      return targetType !== 'K';
-    }
-    if(attackerType === 'B'){
-      return (targetType !== 'A' && targetType !== 'K');
-    }
-    if(attackerType === 'R'){
-      return (targetType !== 'B' && targetType !== 'A' && targetType !== 'K');
-    }
-    if(attackerType === 'N'){
-      return (targetType === 'P' || targetType === 'C');
-    }
-    if(attackerType === 'P'){
-      // pawn can capture king, but cannot capture cannon (wiki says pawn cannot eat cannon)
-      return (targetType === 'K');
-    }
-    return false;
-  }
-
+  // =========================================================
+  // Dark legal moves
+  // =========================================================
   function darkLegalMovesForPiece(game, from){
     const rows=game.rows, cols=game.cols;
     const p=game.board[from.r][from.c];
     if(!p || !p.revealed) return [];
     const myColor = darkPlayerColorForTurn(game);
-    if(!myColor) return []; // not assigned yet -> cannot move, must flip
+    if(!myColor) return [];
     if(p.color !== myColor) return [];
+    // chain: only one piece allowed
+    if(game.chainActive && game.chainPieceId !== p.id) return [];
 
     const moves = [];
-    const addMove=(r,c,kind)=>{ moves.push({r,c, kind}); }; // kind: 'move'|'cap'|'capCannon'
+    const add = (r,c,kind)=>moves.push({r,c,kind}); // kind: move|cap|capCannon|capFog|capCannonFog
+
+    const fogOn = !!game.settings.fogCapture;
 
     if(p.type === 'C'){
-      // Move 1 step to empty
+      // move 1 step to empty
       for(const d of DIRS4){
         const r=from.r+d.dr, c=from.c+d.dc;
         if(!inside(r,c,rows,cols)) continue;
-        if(!game.board[r][c]) addMove(r,c,'move');
+        if(!game.board[r][c]) add(r,c,'move');
       }
-      // Capture by jumping exactly 1 piece (any piece as screen), target must be revealed enemy
+      // capture with exactly one screen, target can be revealed (always), and if fogOn, can be face-down too (暗吃)
       for(const d of DIRS4){
         let r=from.r+d.dr, c=from.c+d.dc;
-        // find screen (first piece)
-        let screenFound=false;
+        let screen=false;
         while(inside(r,c,rows,cols)){
           if(game.board[r][c]){
-            screenFound=true;
+            screen=true;
             r+=d.dr; c+=d.dc;
             break;
           }
           r+=d.dr; c+=d.dc;
         }
-        if(!screenFound) continue;
-        // next piece after screen is the only capturable (first piece encountered)
+        if(!screen) continue;
         while(inside(r,c,rows,cols)){
           const t=game.board[r][c];
           if(t){
-            if(t.revealed && t.color !== myColor){
-              addMove(r,c,'capCannon');
+            if(t.color !== myColor){
+              if(t.revealed) add(r,c,'capCannon');
+              else if(fogOn) add(r,c,'capCannonFog');
             }
             break;
           }
@@ -845,31 +853,40 @@
       return moves;
     }
 
-    // Others: move/cap 1 step orth
+    // others: 1 step orth; capture adjacent only
     for(const d of DIRS4){
       const r=from.r+d.dr, c=from.c+d.dc;
       if(!inside(r,c,rows,cols)) continue;
       const t=game.board[r][c];
       if(!t){
-        addMove(r,c,'move');
+        // during chain, only captures should be allowed to continue; player can stop via button
+        if(game.chainActive) continue;
+        add(r,c,'move');
       }else{
-        // cannot capture face-down
-        if(!t.revealed) continue;
         if(t.color === myColor) continue;
-        if(canCaptureTaiwan(p.type, t.type)){
-          addMove(r,c,'cap');
+        if(t.revealed){
+          if(canCaptureFuntown(p, t)){
+            add(r,c,'cap');
+          }
+        }else if(fogOn){
+          // dark capture attempt on face-down adjacent
+          add(r,c,'capFog');
         }
       }
     }
     return moves;
   }
 
+  function darkHasAnyCaptureFrom(game, from){
+    const ms = darkLegalMovesForPiece(game, from);
+    return ms.some(m => m.kind.startsWith('cap'));
+  }
+
   function darkAllLegalActions(game){
-    // action can be flip (any face-down) OR move/cap with own revealed pieces after color assigned
     const actions = [];
     const rows=game.rows, cols=game.cols;
 
-    // flips always allowed
+    // flip always allowed
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols;c++){
         const p=game.board[r][c];
@@ -880,15 +897,15 @@
     }
 
     const myColor = darkPlayerColorForTurn(game);
-    if(!myColor){
-      return actions; // before color assignment only flipping is legal
-    }
+    if(!myColor) return actions;
 
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols;c++){
         const p=game.board[r][c];
         if(!p || !p.revealed) continue;
         if(p.color !== myColor) continue;
+        if(game.chainActive && game.chainPieceId !== p.id) continue;
+
         const from={r,c};
         const ms = darkLegalMovesForPiece(game, from);
         for(const m of ms){
@@ -923,22 +940,30 @@
 
   function renderStatus(){
     const modeText = game.mode === MODE.PVP ? '雙人模式' : `玩家 vs CPU（${CPU_LEVELS[game.cpuLevel]?.name || game.cpuLevel}）`;
-    const boardText = game.boardMode === BOARD.BIG ? '大盤 9×10' : '台灣暗棋 4×8（32 子）';
-    const turnSeat = game.turn === 'r' ? '先手/玩家1' : '後手/玩家2';
 
     if(game.boardMode === BOARD.DARK){
+      const seatText = game.turn==='r'?'玩家1':'玩家2';
       const p1 = game.darkSide.p1 ? (game.darkSide.p1==='r'?'紅':'黑') : '未定';
       const p2 = game.darkSide.p2 ? (game.darkSide.p2==='r'?'紅':'黑') : '未定';
       const myColor = darkPlayerColorForTurn(game);
-      const colorText = myColor ? (myColor==='r'?'紅':'黑') : '（請翻棋決定顏色）';
+      const colorText = myColor ? (myColor==='r'?'（操紅）':'（操黑）') : '（請翻棋決定顏色）';
+
       statusLine.textContent =
-        `${boardText}｜${modeText}｜輪到：${turnSeat} ${colorText}｜玩家1=${p1} 玩家2=${p2}｜吃子：紅${game.darkCaptured.r}/16 黑${game.darkCaptured.b}/16`;
-      btnCheckWin.classList.add('hidden');
-      btnCheckWin.classList.remove('flash');
-    } else {
+        `暗棋 4×8｜${modeText}｜輪到：${seatText}${colorText}｜玩家1=${p1} 玩家2=${p2}｜吃子：紅${game.darkCaptured.r}/16 黑${game.darkCaptured.b}/16`;
+
+
+      darkToggles.classList.remove('hidden');
+      inFogCapture.checked = !!game.settings.fogCapture;
+      inChainCapture.checked = !!game.settings.chainCapture;
+
+      btnStopChain.classList.toggle('hidden', !(game.chainActive && game.players[game.turn]==='human' && game.settings.chainCapture));
+
+    }else{
       const turnText = game.turn==='r'?'紅方':'黑方';
-      statusLine.textContent = `${boardText}｜${modeText}｜輪到：${turnText}`;
-      // check button visibility handled in renderBoard for simplicity
+      statusLine.textContent = `大盤 9×10｜${modeText}｜輪到：${turnText}`;
+
+      darkToggles.classList.add('hidden');
+      btnStopChain.classList.add('hidden');
     }
 
     inSound.checked = !!game.settings.soundOn;
@@ -960,20 +985,20 @@
     boardEl.style.setProperty('--rows', String(game.rows));
     boardEl.innerHTML = '';
 
-    // big board center band
+    // overlays
     if(game.boardMode === BOARD.BIG){
       const band = document.createElement('div');
-      band.className='centerBand';
-      band.innerHTML = `<div class="bandSplit"></div><div class="bandText">楚河漢界</div>`;
+      band.className='riverBand';
+      band.innerHTML = `<div class="bandSplit"></div><div class="riverText"><span>楚河</span><span>漢界</span></div>`;
       boardEl.appendChild(band);
-    } else {
+    }else{
       const band = document.createElement('div');
       band.className='darkBand';
-      band.innerHTML = `<div class="darkTitle">台灣暗棋</div>`;
+      band.innerHTML = `<div class="darkTitle">暗棋</div>`;
       boardEl.appendChild(band);
     }
 
-    // recompute danger squares (simple: mark opponent capture squares)
+    // danger squares
     game.dangerSquares = new Set();
     if(game.settings.dangerHints){
       if(game.boardMode === BOARD.BIG){
@@ -981,16 +1006,14 @@
         const atk = attackedSquaresBig(game, game.board, enemy);
         atk.forEach(k=>game.dangerSquares.add(k));
       }else{
-        // dark: show enemy potential capture destinations (only if colors assigned)
         const myColor = darkPlayerColorForTurn(game);
         if(myColor){
           const enemyColor = opp(myColor);
-          // pretend it's enemy's turn on their seat
           const enemySeat = darkSeatForColor(game, enemyColor);
           if(enemySeat){
             const tempTurn = game.turn;
             game.turn = enemySeat;
-            const acts = darkAllLegalActions(game).filter(a=>a.type==='move' && (a.kind==='cap' || a.kind==='capCannon'));
+            const acts = darkAllLegalActions(game).filter(a=>a.type==='move' && a.kind.startsWith('cap'));
             for(const a of acts) game.dangerSquares.add(cellKey(a.to.r,a.to.c));
             game.turn = tempTurn;
           }
@@ -998,7 +1021,7 @@
       }
     }
 
-    // check window big
+    // check button visibility for big
     if(game.boardMode === BOARD.BIG && game.checkWindow && !game.gameOver){
       const still = inCheckBig(game, game.board, game.checkWindow.defender);
       const show = still && game.players[game.checkWindow.attacker]==='human';
@@ -1018,14 +1041,14 @@
 
         if(c===game.cols-1) cell.classList.add('edgeR');
         if(r===game.rows-1) cell.classList.add('edgeB');
-
-        // corner ornaments (light)
         if(((r+c)%5)===0) cell.classList.add('cornerMark');
 
-        // selection & hints
+        // selection
         if(game.selected && game.selected.r===r && game.selected.c===c){
           cell.classList.add('selected');
         }
+
+        // hints
         if(game.settings.moveHints && game.selected){
           const hit = game.legalMoves.find(m=>m.r===r && m.c===c);
           if(hit){
@@ -1038,7 +1061,6 @@
           cell.classList.add('danger');
         }
 
-        // CPU last move highlight
         if(game.lastCpuFrom && game.lastCpuFrom.r===r && game.lastCpuFrom.c===c){
           cell.classList.add('cpuFrom');
         }
@@ -1046,11 +1068,9 @@
           cell.classList.add('cpuTo');
         }
 
-        // piece
         const p = game.board[r][c];
         if(p){
           if(game.boardMode === BOARD.DARK){
-            // flip card style
             const wrap = document.createElement('div');
             wrap.className='flipWrap';
 
@@ -1085,7 +1105,7 @@
     const el = document.createElement('div');
     if(forceBack || (game.boardMode===BOARD.DARK && !p.revealed)){
       el.className = 'piece back';
-      el.textContent = '卍';
+      el.textContent = ''; // MUST be empty: no symbol, no mark
       return el;
     }
     const cls = p.color==='r'?'red':'black';
@@ -1095,7 +1115,7 @@
   }
 
   // =========================================================
-  // Interaction + animation lock
+  // Interaction
   // =========================================================
   function posFromCell(el){
     return { r: parseInt(el.dataset.r,10), c: parseInt(el.dataset.c,10) };
@@ -1106,8 +1126,7 @@
     if(game.locked) return;
     if(game.players[game.turn] !== 'human') return;
 
-    const cell = e.currentTarget;
-    const pos = posFromCell(cell);
+    const pos = posFromCell(e.currentTarget);
 
     if(game.boardMode === BOARD.BIG){
       handleBigClick(pos);
@@ -1131,7 +1150,6 @@
       return;
     }
 
-    // cancel / reselect
     if(p && p.color===game.turn){
       if(game.selected.r===pos.r && game.selected.c===pos.c){
         game.selected=null; game.legalMoves=[];
@@ -1146,7 +1164,6 @@
       return;
     }
 
-    // move attempt
     const ok = game.legalMoves.some(m=>m.r===pos.r && m.c===pos.c);
     if(!ok){
       AudioManager.play('error');
@@ -1154,7 +1171,6 @@
       return;
     }
 
-    // undo point
     game.saveUndoPoint();
 
     const from = game.selected;
@@ -1168,21 +1184,16 @@
     AudioManager.play(target ? 'capture':'move');
     game.pushHistory(`${game.turn==='r'?'紅':'黑'}：${GLYPH[mover.color][mover.type]} (${from.r+1},${from.c+1})→(${pos.r+1},${pos.c+1})${target?` 吃 ${GLYPH[target.color][target.type]}`:''}`);
 
-    // win by check-button rule (same as older)
     game.turn = opp(game.turn);
 
-    // check window
     const defender = game.turn;
     const attacker = opp(defender);
     if(inCheckBig(game, game.board, defender)){
       game.checkWindow = { attacker, defender };
-      if(!game.lastCheckState[defender]){
-        AudioManager.play('check');
-      }
+      if(!game.lastCheckState[defender]) AudioManager.play('check');
       game.lastCheckState[defender] = true;
       setSub(`⚠️ ${attacker==='r'?'紅':'黑'}方將軍！可按「將軍！」立即獲勝。`);
       if(game.players[attacker]==='cpu'){
-        // auto claim
         renderAll();
         setTimeout(()=>{
           if(game.checkWindow && inCheckBig(game, game.board, defender)){
@@ -1203,15 +1214,30 @@
   async function handleDarkClick(pos){
     const p = game.board[pos.r][pos.c];
 
-    // In dark chess, selecting a face-down piece triggers "flip" action (if not currently selecting a move).
-    // If a piece is selected (revealed + belongs to player), clicking a destination attempts move/capture.
+    // chain: only allow selecting chain piece; stopping uses button
+    if(game.chainActive){
+      const chainPos = findPieceById(game.board, game.chainPieceId);
+      if(chainPos && (chainPos.r!==pos.r || chainPos.c!==pos.c)){
+        // if click destination: attempt move with chain piece if legal
+        if(game.selected && game.selected.r===chainPos.r && game.selected.c===chainPos.c){
+          const ok = game.legalMoves.some(m=>m.r===pos.r && m.c===pos.c);
+          if(ok){
+            await darkDoMove(chainPos, pos, false);
+            return;
+          }
+        }
+        // reselect chain piece, then try
+        game.selected = chainPos;
+        game.legalMoves = darkLegalMovesForPiece(game, chainPos);
+      }
+    }
 
-    // If selected exists, attempt move
+    // If selected exists, attempt move/capture
     if(game.selected){
       const ok = game.legalMoves.some(m=>m.r===pos.r && m.c===pos.c);
       if(!ok){
-        // allow reselect another own piece
-        if(p && p.revealed){
+        // allow reselect another own revealed piece if not chainActive
+        if(!game.chainActive && p && p.revealed){
           const myColor = darkPlayerColorForTurn(game);
           if(myColor && p.color===myColor){
             game.selected = pos;
@@ -1226,9 +1252,8 @@
         return;
       }
 
-      // execute move/capture with animation
       const from = game.selected;
-      await darkDoMove(from, pos);
+      await darkDoMove(from, pos, false);
       return;
     }
 
@@ -1238,16 +1263,15 @@
       return;
     }
 
-    // If face-down: flip action
+    // flip
     if(!p.revealed){
-      await darkDoFlip(pos);
+      await darkDoFlip(pos, false);
       return;
     }
 
-    // revealed: can select only if it belongs to current player's color
+    // select revealed (must be own color, and color must be assigned)
     const myColor = darkPlayerColorForTurn(game);
     if(!myColor){
-      // before assignment, cannot move any revealed; must flip
       AudioManager.play('error');
       setSub('尚未決定顏色：請翻一顆蓋牌。');
       return;
@@ -1265,31 +1289,23 @@
   }
 
   // =========================================================
-  // DARK actions (flip / move) with undo + CPU animation
+  // Dark actions (flip / move) + chain
   // =========================================================
   async function darkDoFlip(at, isCpu=false){
     if(game.gameOver) return;
     const p = game.board[at.r][at.c];
     if(!p || p.revealed) return;
 
-    // save undo
     game.saveUndoPoint();
-
-    // lock during animation
     game.locked = true;
     renderAll();
 
-    // CPU highlight
-    if(isCpu){
-      await cpuPreHighlight(at);
-    }
+    if(isCpu) await cpuPreHighlight(at);
 
-    // reveal
     p.revealed = true;
 
-    // assign colors if first flip not yet assigned
+    // assign colors if first flip
     if(!game.darkSide.p1 && !game.darkSide.p2){
-      // first flipper seat becomes color of flipped piece
       const seat = game.turn==='r' ? 'p1' : 'p2';
       const other = seat==='p1' ? 'p2':'p1';
       game.darkSide[seat] = p.color;
@@ -1297,72 +1313,104 @@
       game.pushHistory(`翻棋決定顏色：${seat==='p1'?'玩家1':'玩家2'} 操作 ${p.color==='r'?'紅':'黑'}。`);
     }
 
-    game.noProgressPlies = 0; // flip counts as progress
-
-    // flip animation: toggle class by rerender with flipped state
+    game.noProgressPlies = 0;
     AudioManager.play('capture');
     await animateFlip(at);
 
     game.pushHistory(`${game.turn==='r'?'玩家1':'玩家2'} 翻開：${GLYPH[p.color][p.type]} @(${at.r+1},${at.c+1})`);
 
-    // end of action: switch turn
-    game.turn = opp(game.turn);
+    // flip ends any chain
+    game.chainActive = false;
+    game.chainPieceId = null;
 
-    // clear selection
+    game.turn = opp(game.turn);
     game.selected=null; game.legalMoves=[];
     game.lastCpuFrom = null;
     game.lastCpuTo = at;
 
-    // unlock and render
     game.locked = false;
     renderAll();
-
-    // win check (if someone has no pieces? not possible on flip)
     checkDarkEndOrDraw();
-
-    // cpu if needed
     await maybeCpuAct();
+  }
+
+  function getMoveKind(from,to){
+    const m = game.legalMoves.find(x=>x.r===to.r && x.c===to.c);
+    return m ? m.kind : null;
   }
 
   async function darkDoMove(from, to, isCpu=false){
     if(game.gameOver) return;
 
     const mover = game.board[from.r][from.c];
+    if(!mover) return;
+
+    const kind = getMoveKind(from, to);
+    if(!kind){
+      AudioManager.play('error');
+      return;
+    }
+
     const target = game.board[to.r][to.c];
+    const myColor = darkPlayerColorForTurn(game);
 
-    // save undo
     game.saveUndoPoint();
-
-    // lock
     game.locked = true;
     renderAll();
 
-    if(isCpu){
-      await cpuPreHighlight(from);
+    if(isCpu) await cpuPreHighlight(from);
+
+    // attempt capture on fog piece (adjacent or cannon)
+    if(kind === 'capFog' || kind === 'capCannonFog'){
+      // Reveal target first (implementation decision noted in comments)
+      if(target && !target.revealed){
+        target.revealed = true;
+        await animateFlip(to);
+      }
+
+      // Validate capture legality after reveal
+      // For cannon: legality is always true as long as screen existed (already guaranteed) and enemy piece exists
+      // For non-cannon: must satisfy table now that it's revealed
+      if(!target || target.color === myColor){
+        // should not happen
+        AudioManager.play('error');
+        game.locked = false;
+        renderAll();
+        return;
+      }
+      if(mover.type !== 'C'){
+        if(!canCaptureFuntown(mover, target)){
+          // fail capture: no move, turn ends (decision)
+          AudioManager.play('error');
+          game.pushHistory(`${game.turn==='r'?'玩家1':'玩家2'} 暗吃失敗：${GLYPH[mover.color][mover.type]} 無法吃 ${GLYPH[target.color][target.type]}（目標已翻開）`);
+          game.chainActive = false;
+          game.chainPieceId = null;
+          game.selected=null; game.legalMoves=[];
+          game.turn = opp(game.turn);
+          game.noProgressPlies += 1;
+          game.locked = false;
+          renderAll();
+          await maybeCpuAct();
+          return;
+        }
+      }
+      // else success: proceed as normal capture
     }
 
-    // Determine if capture
-    const isCapture = !!target;
-
-    // Capture restrictions: target must be revealed enemy (already ensured by legal move gen)
-    // Apply visual move animation first
+    // Animate travel
     await animatePieceTravel(from, to);
 
-    // if capture: fade target then remove
+    const isCapture = kind.startsWith('cap');
     if(isCapture){
       await animateCaptureFade(to);
-      // count captured by color
-      game.darkCaptured[target.color] += 1;
+      if(target) game.darkCaptured[target.color] += 1;
     }
 
-    // apply board
+    // Apply board change
     game.board[to.r][to.c] = mover;
     game.board[from.r][from.c] = null;
 
-    // clear selection
-    game.selected=null; game.legalMoves=[];
-
-    // progress rule
+    // bookkeeping
     if(isCapture){
       game.noProgressPlies = 0;
       AudioManager.play('capture');
@@ -1371,32 +1419,64 @@
       AudioManager.play('move');
     }
 
-    game.pushHistory(`${game.turn==='r'?'玩家1':'玩家2'}：${GLYPH[mover.color][mover.type]} (${from.r+1},${from.c+1})→(${to.r+1},${to.c+1})${isCapture?` 吃 ${GLYPH[target.color][target.type]}`:''}`);
+    const actor = game.turn==='r'?'玩家1':'玩家2';
+    game.pushHistory(`${actor}：${GLYPH[mover.color][mover.type]} (${from.r+1},${from.c+1})→(${to.r+1},${to.c+1})${isCapture && target?` 吃 ${GLYPH[target.color][target.type]}`:''}`);
 
-    // cpu move highlight squares for 1s
+    game.selected=null; game.legalMoves=[];
     game.lastCpuFrom = isCpu ? from : null;
     game.lastCpuTo = isCpu ? to : null;
 
-    // switch turn
-    game.turn = opp(game.turn);
+    // Chain logic: if capture happened and chain enabled and more captures available from new square
+    if(isCapture && game.settings.chainCapture){
+      const fromNew = {r:to.r, c:to.c};
+      // Keep same player's turn if can continue capture; else pass
+      game.chainActive = darkHasAnyCaptureFrom(game, fromNew);
+      game.chainPieceId = game.chainActive ? mover.id : null;
 
-    // unlock
+      if(game.chainActive){
+        setSub('連吃中：可繼續吃，或按「結束連吃」。');
+        // keep turn
+        game.turn = game.turn;
+        // auto-select chain piece for convenience
+        game.selected = fromNew;
+        game.legalMoves = darkLegalMovesForPiece(game, fromNew);
+      }else{
+        setSub('');
+        game.turn = opp(game.turn);
+      }
+    }else{
+      // move or chain disabled -> pass turn
+      game.chainActive = false;
+      game.chainPieceId = null;
+      setSub('');
+      game.turn = opp(game.turn);
+    }
+
     game.locked = false;
     renderAll();
 
-    // highlight squares 1s
     if(isCpu){
-      await highlightCpuSquares(from, to);
+      await highlightCpuSquares(from,to);
     }
 
     checkDarkEndOrDraw();
     await maybeCpuAct();
   }
 
+  function stopChainIfAny(){
+    if(game.boardMode !== BOARD.DARK) return;
+    if(!game.chainActive) return;
+    game.chainActive = false;
+    game.chainPieceId = null;
+    game.selected=null; game.legalMoves=[];
+    setSub('已結束連吃，換對手。');
+    game.turn = opp(game.turn);
+    renderAll();
+    maybeCpuAct();
+  }
+
   function checkDarkEndOrDraw(){
     if(game.boardMode !== BOARD.DARK) return;
-
-    // win: captured all opponent pieces
     if(game.darkCaptured.r >= 16){
       endGame('b', '（暗棋：黑方吃完紅方 16 子）');
       return;
@@ -1405,22 +1485,30 @@
       endGame('r', '（暗棋：紅方吃完黑方 16 子）');
       return;
     }
-
-    // draw: 50 plies without flip or capture (simplified)
+    // Funtown: 50 plies no flip/capture -> draw :contentReference[oaicite:20]{index=20}
     if(game.noProgressPlies >= 50){
-      endDraw('（50 步無翻子或吃子）');
+      endDraw('（空步判和：連續 50 步無翻棋或吃棋）');
     }
   }
 
+  function findPieceById(board, id){
+    for(let r=0;r<board.length;r++){
+      for(let c=0;c<board[0].length;c++){
+        const p=board[r][c];
+        if(p && p.id===id) return {r,c};
+      }
+    }
+    return null;
+  }
+
   // =========================================================
-  // CPU logic (both modes)
+  // CPU logic
   // =========================================================
   async function maybeCpuAct(){
     if(game.gameOver) return;
     if(game.locked) return;
     if(game.players[game.turn] !== 'cpu') return;
 
-    // small delay for clarity
     await sleep(260);
 
     if(game.boardMode === BOARD.BIG){
@@ -1431,7 +1519,6 @@
   }
 
   async function cpuActBig(){
-    // extremely simple CPU: random legal move, prefer capture
     const all=[];
     for(let r=0;r<game.rows;r++){
       for(let c=0;c<game.cols;c++){
@@ -1452,7 +1539,6 @@
     all.sort((a,b)=> (b.cap?1:0)-(a.cap?1:0) + (Math.random()-0.5)*0.1 );
     const choice = all[0];
 
-    // animate CPU move
     game.saveUndoPoint();
     game.locked=true;
     renderAll();
@@ -1476,7 +1562,6 @@
     renderAll();
     await highlightCpuSquares(choice.from, choice.to);
 
-    // check window logic
     const defender = game.turn;
     const attacker = opp(defender);
     if(inCheckBig(game, game.board, defender)){
@@ -1498,66 +1583,92 @@
   async function cpuActDark(){
     const lvl = CPU_LEVELS[game.cpuLevel] || CPU_LEVELS.normal;
     const actions = darkAllLegalActions(game);
-
     if(!actions.length){
-      // no legal actions -> lose (rare)
       endGame(opp(game.turn), '（暗棋：無可行動）');
       return;
     }
 
+    // if chain active, only move actions for that piece exist (by generator)
     // Heuristic:
-    // - prefer capture (especially capturing higher-value)
-    // - else prefer flipping (early / if no assigned / low mobility)
-    // - else random move
-    const myColor = darkPlayerColorForTurn(game);
-
-    let best = null;
-    let bestScore = -Infinity;
+    // - Prefer capture (revealed) > capture fog (risk) > flip > move
+    // - If chainActive, always capture if possible; else stop sometimes
+    let best=null;
+    let bestScore=-Infinity;
 
     for(const a of actions){
-      let s = 0;
-      if(a.type === 'flip'){
-        // before assignment flipping is mandatory
-        s += (!myColor ? 1000 : 40);
-        s += Math.random() * 10;
-      } else {
-        const mover = game.board[a.from.r][a.from.c];
-        const target = game.board[a.to.r][a.to.c];
-        if(target){
-          s += 300;
-          s += pieceValue(target.type);
-          // slight bonus for cannon capture
-          if(a.kind==='capCannon') s += 40;
-        } else {
-          s += 30;
+      let s=0;
+      if(a.type==='flip'){
+        // before assignment: flipping is critical
+        const myColor = darkPlayerColorForTurn(game);
+        s += (!myColor ? 900 : 20);
+        s += Math.random()*8;
+      }else{
+        if(a.kind.startsWith('cap')){
+          s += 200;
+          const t = game.board[a.to.r][a.to.c];
+          // fog capture risk
+          if(a.kind.includes('Fog')) s -= 20 + Math.random()*(lvl.noise||0);
+          // prioritize taking revealed higher (approx)
+          if(t && t.revealed){
+            s += pieceValue(t.type);
+          }else{
+            // unknown: expected value by remaining distribution (simplified)
+            s += expectedFogValue(game);
+          }
+          // chain: prefer keeping capture
+          if(game.settings.chainCapture) s += 30;
+        }else{
+          s += 10;
         }
         s += (Math.random()*2-1) * (lvl.noise||0);
       }
-      if(s > bestScore){
-        bestScore = s;
-        best = a;
-      }
+      if(s>bestScore){ bestScore=s; best=a; }
     }
 
-    if(best.type === 'flip'){
+    // Execute
+    if(best.type==='flip'){
       await darkDoFlip(best.at, true);
       return;
     }
     await darkDoMove(best.from, best.to, true);
+
+    // CPU chain stop decision: if still chainActive, sometimes stop (since rules allow stop anytime) 
+    if(game.chainActive && game.players[game.turn]==='cpu'){
+      const lvl2 = CPU_LEVELS[game.cpuLevel] || CPU_LEVELS.normal;
+      const stopProb = (lvl2.noise>0) ? 0.25 : 0.12;
+      if(Math.random() < stopProb){
+        stopChainIfAny();
+      }
+    }
   }
 
   function pieceValue(t){
-    // rough value for AI preference
     switch(t){
       case 'K': return 120;
-      case 'A': return 80;
-      case 'B': return 70;
-      case 'R': return 60;
-      case 'N': return 45;
-      case 'C': return 55;
-      case 'P': return 25;
+      case 'A': return 90;
+      case 'B': return 80;
+      case 'R': return 75;
+      case 'N': return 60;
+      case 'C': return 70;
+      case 'P': return 40;
       default: return 0;
     }
+  }
+
+  function expectedFogValue(game){
+    // very simplified: average piece value among still-face-down enemy pieces
+    const myColor = darkPlayerColorForTurn(game);
+    if(!myColor) return 55;
+    const enemy = opp(myColor);
+    const vals=[];
+    for(let r=0;r<game.rows;r++){
+      for(let c=0;c<game.cols;c++){
+        const p=game.board[r][c];
+        if(p && p.color===enemy && !p.revealed) vals.push(pieceValue(p.type));
+      }
+    }
+    if(!vals.length) return 10;
+    return vals.reduce((a,b)=>a+b,0)/vals.length;
   }
 
   // =========================================================
@@ -1576,13 +1687,10 @@
   }
 
   async function highlightCpuSquares(from,to){
-    // keep highlight for 1s using existing classes set in state; just wait
     await sleep(1000);
-    // keep in state until next CPU move; no need to clear
   }
 
   async function animateFlip(at){
-    // render already updated revealed=true, so we can just wait for CSS transition to play
     renderAll();
     await sleep(460);
   }
@@ -1590,12 +1698,9 @@
   async function animateCaptureFade(at){
     const cell = getCellEl(at);
     if(!cell) return;
-    const piece = cell.querySelector('.piece, .flipWrap');
-    if(!piece) return;
-    // fade the front face if dark
-    let targetEl = piece;
     const frontPiece = cell.querySelector('.flipInner.flipped .front .piece');
-    if(frontPiece) targetEl = frontPiece;
+    const targetEl = frontPiece || cell.querySelector('.piece') || cell.querySelector('.flipWrap');
+    if(!targetEl) return;
     targetEl.classList.add('fadeOut');
     await sleep(280);
   }
@@ -1611,7 +1716,6 @@
     const rectFrom = fromPiece.getBoundingClientRect();
     const rectTo = toCell.getBoundingClientRect();
 
-    // clone visual
     const clone = fromPiece.cloneNode(true);
     clone.classList.add('flying');
     document.body.appendChild(clone);
@@ -1625,7 +1729,6 @@
     const dx = rectTo.left + rectTo.width/2 - (rectFrom.left + rectFrom.width/2);
     const dy = rectTo.top + rectTo.height/2 - (rectFrom.top + rectFrom.height/2);
 
-    // animate
     clone.animate(
       [{ transform:`translate(0px,0px)` }, { transform:`translate(${dx}px,${dy}px)` }],
       { duration: 260, easing:'cubic-bezier(.2,.8,.2,1)' }
@@ -1636,7 +1739,7 @@
   }
 
   // =========================================================
-  // Dice (for first mover seat, not color in dark chess)
+  // Dice
   // =========================================================
   function weightedDiceForCpu(levelKey){
     const lvl = CPU_LEVELS[levelKey] || CPU_LEVELS.normal;
@@ -1668,7 +1771,7 @@
         <div class="diceRow"><div class="diceLabel">紅方</div><div id="dvR" class="diceValue red">–</div></div>
         <div class="diceRow"><div class="diceLabel">黑方</div><div id="dvB" class="diceValue black">–</div></div>
       </div>
-      <div id="diceInfo" style="margin-top:10px;font-weight:800;">準備開始…</div>
+      <div id="diceInfo" style="margin-top:10px;font-weight:900;">準備開始…</div>
     `;
     openModal({ title:'擲骰決定先手', bodyNode: body, actions:[{text:'取消', onClick:()=>{cleanup(); closeModal();}}] });
 
@@ -1824,8 +1927,7 @@
   function autoSave(){
     if(!game.config) return;
     const save = game.snapshot();
-    // also persist undoStack length-limited snapshots? keep simple: store only current state
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version:3, savedAt:Date.now(), state: save }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version:4, savedAt:Date.now(), state: save }));
   }
   function clearSave(){ localStorage.removeItem(STORAGE_KEY); }
   function tryLoadSave(){
@@ -1833,7 +1935,7 @@
     if(!raw) return null;
     try{
       const o = JSON.parse(raw);
-      if(!o || o.version !== 3) return null;
+      if(!o || o.version !== 4) return null;
       return o;
     }catch(_e){ return null; }
   }
@@ -1843,9 +1945,12 @@
   // =========================================================
   function updateMenuVisibility(){
     const mode = document.querySelector('input[name="mode"]:checked').value;
+    const boardMode = document.querySelector('input[name="boardMode"]:checked').value;
     const firstMethod = document.querySelector('input[name="firstMethod"]:checked').value;
+
     cpuPanel.classList.toggle('hidden', mode !== MODE.PVC);
     manualFirstRow.classList.toggle('hidden', firstMethod !== 'manual');
+    darkOptionsPanel.classList.toggle('hidden', boardMode !== BOARD.DARK);
   }
 
   function getMenuConfig(){
@@ -1864,6 +1969,8 @@
       moveHints: $('optMoveHints').checked,
       dangerHints: $('optDangerHints').checked,
       soundOn: $('optSound').checked,
+      fogCapture: $('optFogCapture')?.checked ?? true,
+      chainCapture: $('optChainCapture')?.checked ?? true,
       startTurn: manualFirst
     };
   }
@@ -1877,6 +1984,8 @@
       moveHints: cfg0.moveHints,
       dangerHints: cfg0.dangerHints,
       soundOn: cfg0.soundOn,
+      fogCapture: cfg0.fogCapture,
+      chainCapture: cfg0.chainCapture,
       startTurn: cfg0.startTurn,
     };
 
@@ -1903,6 +2012,9 @@
     cfg.moveHints = game.settings.moveHints;
     cfg.dangerHints = game.settings.dangerHints;
     cfg.soundOn = game.settings.soundOn;
+    cfg.fogCapture = game.settings.fogCapture;
+    cfg.chainCapture = game.settings.chainCapture;
+
     game = new Game();
     game.initNew(cfg);
     setSub('');
@@ -1917,14 +2029,16 @@
   }
 
   // =========================================================
-  // Buttons / toggles
+  // UI wiring
   // =========================================================
   function wireUI(){
     document.querySelectorAll('input[name="mode"]').forEach(el=>el.addEventListener('change', updateMenuVisibility));
+    document.querySelectorAll('input[name="boardMode"]').forEach(el=>el.addEventListener('change', updateMenuVisibility));
     document.querySelectorAll('input[name="firstMethod"]').forEach(el=>el.addEventListener('change', updateMenuVisibility));
 
-    $('btnStart').addEventListener('click', startNewGameFromMenu);
-    $('btnClearSave').addEventListener('click', ()=>{
+    btnStart.addEventListener('click', startNewGameFromMenu);
+
+    btnClearSave.addEventListener('click', ()=>{
       clearSave();
       openModal({ title:'已清除存檔', bodyHTML:'<div>已清除本機 localStorage 存檔。</div>', actions:[{text:'OK', primary:true, onClick:closeModal}]});
     });
@@ -1941,6 +2055,11 @@
         renderAll();
         maybeCpuAct();
       }
+    });
+
+    btnStopChain.addEventListener('click', ()=>{
+      AudioManager.play('select');
+      stopChainIfAny();
     });
 
     btnCheckWin.addEventListener('click', ()=>{
@@ -1967,6 +2086,31 @@
     });
     inMoveHints.addEventListener('change', ()=>{ game.settings.moveHints = inMoveHints.checked; renderAll(); });
     inDangerHints.addEventListener('change', ()=>{ game.settings.dangerHints = inDangerHints.checked; renderAll(); });
+
+    inFogCapture.addEventListener('change', ()=>{
+      if(game.boardMode !== BOARD.DARK) return;
+      game.settings.fogCapture = inFogCapture.checked;
+      // if turned off mid-chain and next capture would require fog, it naturally blocks
+      renderAll();
+    });
+    inChainCapture.addEventListener('change', ()=>{
+      if(game.boardMode !== BOARD.DARK) return;
+      const was = game.settings.chainCapture;
+      game.settings.chainCapture = inChainCapture.checked;
+
+      // If chain currently active and user turns off chain: end chain immediately and pass turn (explicit decision)
+      if(was && !game.settings.chainCapture && game.chainActive){
+        setSub('已關閉連吃：本回合立即結束並換對手。');
+        game.chainActive = false;
+        game.chainPieceId = null;
+        game.selected=null; game.legalMoves=[];
+        game.turn = opp(game.turn);
+        renderAll();
+        maybeCpuAct();
+        return;
+      }
+      renderAll();
+    });
 
     optSound?.addEventListener('change', ()=>{
       AudioManager.setEnabled(optSound.checked);
