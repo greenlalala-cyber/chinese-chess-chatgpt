@@ -2,7 +2,6 @@
   --cellSize: 54px;
   --paper1: #ead9b8;
   --paper2: #d9c39a;
-  --ink: rgba(20,16,10,0.85);
   --line: rgba(20,16,10,0.40);
   --shadow: rgba(0,0,0,0.16);
 }
@@ -133,7 +132,7 @@ button:disabled{ opacity:0.55; cursor:not-allowed; }
   pointer-events:none;
 }
 
-/* ChuHe HanJie band: thin overlay BETWEEN rows (non-interactive, not a cell) */
+/* ChuHe HanJie overlay band non-interactive */
 .riverBand{
   position:absolute;
   left:0; right:0;
@@ -251,7 +250,7 @@ button:disabled{ opacity:0.55; cursor:not-allowed; }
 .piece.red{ color:#b30000; }
 .piece.black{ color:#111; }
 
-/* Back side: NO SYMBOL / NO TEXT (only color + shading) */
+/* Back side no symbol */
 .piece.back{
   background:
     radial-gradient(circle at 30% 25%, rgba(255,255,255,0.55), rgba(255,255,255,0.10) 55%, rgba(0,0,0,0.12)),
